@@ -18,7 +18,7 @@ The project has three main contributions:
 2. **Finance-specific contribution**: adapt the detector to volatility, covariance, factor, and microstructure features.
 3. **Empirical contribution**: evaluate not only statistical breakpoint accuracy, but also downstream economic value through covariance loss, GMVP performance, VaR/CVaR calibration, drawdown control, and turnover-adjusted returns.
 
----
+
 
 ## 2. Motivation
 
@@ -55,34 +55,34 @@ Classical change point methods often focus on changes in mean, variance, regress
 
 A market regime may change through:
 
-\[
+```math
 \text{tail thickness}, \quad
 \text{skewness}, \quad
 \text{cross-sectional dependence}, \quad
 \text{volatility clustering}, \quad
 \text{liquidity state}, \quad
 \text{return distribution shape}.
-\]
+```
 
 Two regimes may have nearly identical mean and variance but very different downside risk or dependence structure.
 
 For example:
 
-\[
+```math
 r_t \sim \mathcal{N}(0, \sigma^2)
-\]
+```
 
 and
 
-\[
+```math
 r_t \sim t_\nu(0, \tilde{\sigma}^2)
-\]
+```
 
 can be scaled to have similar first two moments, yet the second distribution has much fatter tails. A mean-variance detector may miss the shift, while a distributional metric such as Wasserstein distance, energy distance, or MMD may detect it.
 
 This motivates the use of **distributional CPD** methods that compare empirical distributions rather than only moments.
 
----
+
 
 ## 3. Background and Literature Review
 
@@ -116,41 +116,41 @@ These are especially appealing for finance because financial regimes can differ 
 
 ### 3.3 Optimal Transport and Wasserstein CPD
 
-The current project builds on optimal transport. Given two distributions \(p\) and \(q\), the 2-Wasserstein distance is
+The current project builds on optimal transport. Given two distributions $p$ and $q$, the 2-Wasserstein distance is
 
-\[
+```math
 W_2(p,q)
 =
 \left(
 \inf_{\pi \in \Pi(p,q)}
-\int \|x-y\|_2^2 \, d\pi(x,y)
+\int \lVert x-y \rVert_2^2 \, d\pi(x,y)
 \right)^{1/2},
-\]
+```
 
-where \(\Pi(p,q)\) is the set of couplings with marginals \(p\) and \(q\).
+where $\Pi(p,q)$ is the set of couplings with marginals $p$ and $q$.
 
-In one dimension, \(W_2\) has a simple quantile representation:
+In one dimension, $W_2$ has a simple quantile representation:
 
-\[
+```math
 W_2^2(p,q)
 =
 \int_0^1
 \left(F^{-1}(u)-G^{-1}(u)\right)^2du.
-\]
+```
 
 This makes univariate and sliced-Wasserstein implementations computationally attractive.
 
 The current uploaded proposal formulates CPD as maximizing the total Wasserstein distance between adjacent segment distributions:
 
-\[
+```math
 \max_{\tau}
 J(\tau)
 =
 \sum_{i=1}^{S-1}
 W_2^2(\mu_i(\tau), \mu_{i+1}(\tau)),
-\]
+```
 
-where \(\tau\) denotes the set of change points and \(\mu_i(\tau)\) is the empirical distribution of segment \(i\).
+where $\tau$ denotes the set of change points and $\mu_i(\tau)$ is the empirical distribution of segment $i$.
 
 This differs from local sliding-window methods because it optimizes the segmentation globally rather than scoring each candidate boundary independently.
 
@@ -160,14 +160,14 @@ Traditional regime models, such as HMMs or Markov-switching models, assume a lat
 
 For finance, the two views can be combined:
 
-\[
+```math
 \text{CPD} \rightarrow \text{segment regimes}
 \rightarrow \text{regime-specific forecasting / allocation model}.
-\]
+```
 
 The detected changepoints can initialize or regularize regime models. Conversely, HMM-like models can serve as strong baselines for comparing downstream value.
 
----
+
 
 ## 4. Research Problem
 
@@ -175,13 +175,13 @@ The detected changepoints can initialize or regularize regime models. Conversely
 
 Let
 
-\[
+```math
 X_1, X_2, \ldots, X_T
-\]
+```
 
-be a time series of financial state vectors, where each \(X_t \in \mathbb{R}^d\). The feature vector may include:
+be a time series of financial state vectors, where each $X_t \in \mathbb{R}^d$. The feature vector may include:
 
-\[
+```math
 X_t =
 [
 r_t,
@@ -192,34 +192,34 @@ r_t,
 \text{factor returns}_t,
 \text{covariance features}_t
 ].
-\]
+```
 
 We assume the sequence is divided into unknown regimes:
 
-\[
+```math
 1 = \tau_0 < \tau_1 < \cdots < \tau_{S-1} < \tau_S = T.
-\]
+```
 
 Each segment
 
-\[
+```math
 T_i = \{X_t : \tau_{i-1} < t \leq \tau_i\}
-\]
+```
 
 has an empirical distribution
 
-\[
+```math
 \mu_i =
-\frac{1}{|T_i|}
+\frac{1}{\lvert T_i \rvert}
 \sum_{t \in T_i}
 \delta_{X_t}.
-\]
+```
 
 The goal is to estimate the change points
 
-\[
+```math
 \widehat{\tau}_1, \ldots, \widehat{\tau}_{S-1}
-\]
+```
 
 such that adjacent segments are distributionally different and the resulting regimes improve downstream financial models.
 
@@ -227,35 +227,35 @@ such that adjacent segments are distributionally different and the resulting reg
 
 A basic global Wasserstein segmentation objective is:
 
-\[
+```math
 \max_{\tau}
 \sum_{i=1}^{S-1}
 W_2^2(\mu_i(\tau), \mu_{i+1}(\tau)).
-\]
+```
 
 However, this objective alone can overfit by creating very short segments. We therefore use a regularized version:
 
-\[
+```math
 \max_{\tau}
 \sum_{i=1}^{S-1}
 W_2^2(\mu_i(\tau), \mu_{i+1}(\tau))
 -
 \lambda S
 -
-\rho \sum_{i=1}^{S}\frac{1}{|T_i|}
+\rho \sum_{i=1}^{S}\frac{1}{\lvert T_i \rvert}
 -
 \eta \cdot \text{TurnoverPenalty}(\tau).
-\]
+```
 
 The terms have the following roles:
 
-- \(\lambda S\): penalizes too many regimes;
-- \(\rho / |T_i|\): discourages tiny noisy segments;
+- $\lambda S$: penalizes too many regimes;
+- $\rho / \lvert T_i \rvert$: discourages tiny noisy segments;
 - turnover penalty: discourages segmentations that would cause unstable portfolio decisions.
 
 This makes the objective finance-aware.
 
----
+
 
 ## 5. Proposed Methodology
 
@@ -290,7 +290,7 @@ The pipeline has five stages:
 5. **Evaluation**  
    Measure both breakpoint accuracy and economic value.
 
----
+
 
 ## 5.2 Candidate CPD Algorithms
 
@@ -327,7 +327,7 @@ We propose benchmarking several method families.
 - optional online mini-batch variant;
 - segment clustering using Wasserstein affinity.
 
----
+
 
 ## 5.3 Wasserstein Global Segmentation
 
@@ -335,15 +335,15 @@ The proposed method differs from local window scanning.
 
 ### Local Scanning
 
-Local scanning computes a statistic at each candidate time \(t\):
+Local scanning computes a statistic at each candidate time $t$:
 
-\[
+```math
 \sigma(t)
 =
 D(\widehat{\mu}_{t-\beta:t}, \widehat{\mu}_{t:t+\beta}),
-\]
+```
 
-where \(D\) is a discrepancy measure and \(\beta\) is a window size.
+where $D$ is a discrepancy measure and $\beta$ is a window size.
 
 This is simple and online-friendly, but it treats each candidate boundary independently.
 
@@ -351,7 +351,7 @@ This is simple and online-friendly, but it treats each candidate boundary indepe
 
 Global segmentation optimizes over all boundaries jointly:
 
-\[
+```math
 \widehat{\tau}
 =
 \arg\max_\tau
@@ -359,11 +359,11 @@ Global segmentation optimizes over all boundaries jointly:
 D(\mu_i(\tau), \mu_{i+1}(\tau))
 -
 \text{Penalty}(\tau).
-\]
+```
 
 This can produce more coherent segmentations and reduce duplicate detections around one crisis.
 
----
+
 
 ## 5.4 Multivariate Extension
 
@@ -373,21 +373,21 @@ Full high-dimensional Wasserstein distance is expensive and statistically diffic
 
 Compute univariate Wasserstein distance for each feature and average:
 
-\[
+```math
 D(\mu_i,\mu_j)
 =
 \frac{1}{d}
 \sum_{k=1}^d
 W_2^2(\mu_i^{(k)}, \mu_j^{(k)}).
-\]
+```
 
 This is simple but discards dependence.
 
 ### Option 2: Sliced Wasserstein
 
-Project data onto random directions \(\theta_m\):
+Project data onto random directions $\theta_m$:
 
-\[
+```math
 D_{\text{SW}}(\mu_i,\mu_j)
 =
 \frac{1}{M}
@@ -396,7 +396,7 @@ W_2^2(
 \theta_m^\top \mu_i,
 \theta_m^\top \mu_j
 ).
-\]
+```
 
 This preserves more multivariate structure while remaining computationally tractable.
 
@@ -404,13 +404,13 @@ This preserves more multivariate structure while remaining computationally tract
 
 First embed market states:
 
-\[
+```math
 z_t = f_\phi(X_t),
-\]
+```
 
 then compute Wasserstein distances in embedding space.
 
-The embedding \(f_\phi\) may be:
+The embedding $f_\phi$ may be:
 
 - PCA;
 - autoencoder;
@@ -420,19 +420,19 @@ The embedding \(f_\phi\) may be:
 
 This option connects naturally with regime-aware covariance forecasting.
 
----
+
 
 ## 5.5 Regime Clustering
 
 After detecting change points, we obtain segments:
 
-\[
+```math
 T_1, T_2, \ldots, T_S.
-\]
+```
 
 We then cluster segment distributions using a Wasserstein affinity matrix:
 
-\[
+```math
 A_{ij}
 =
 \exp
@@ -440,13 +440,13 @@ A_{ij}
 -
 \frac{D(\mu_i,\mu_j)}{\tau}
 \right).
-\]
+```
 
 Then apply spectral clustering or soft clustering to assign regime labels:
 
-\[
+```math
 c_i \in \{1,2,\ldots,K\}.
-\]
+```
 
 This allows repeated regimes to be identified. For example:
 
@@ -456,7 +456,7 @@ This allows repeated regimes to be identified. For example:
 - liquidity-stress regime;
 - high-correlation contagion regime.
 
----
+
 
 ## 5.6 Downstream Regime-Aware Models
 
@@ -466,52 +466,52 @@ The detector becomes useful when it improves downstream quant systems.
 
 Use regimes to decide which historical observations should receive more weight:
 
-\[
+```math
 \widehat{\Sigma}_{t+1}
 =
 \sum_{i \in \mathcal{N}(t)}
 w_i^{\text{regime}}
 r_i r_i^\top.
-\]
+```
 
 Possible weighting:
 
-\[
+```math
 w_i
 \propto
 \exp(-D(z_i,z_t)/\tau)
 \cdot
 \mathbb{1}\{c_i = c_t\}.
-\]
+```
 
 Or soft version:
 
-\[
+```math
 w_i
 \propto
 \exp(-D(z_i,z_t)/\tau)
 \cdot
 p(c_i = c_t).
-\]
+```
 
 ### Portfolio Allocation
 
 Use the regime-aware covariance forecast in a GMVP problem:
 
-\[
+```math
 \min_w
 w^\top \widehat{\Sigma}_{t+1} w
-\]
+```
 
 subject to
 
-\[
+```math
 \mathbf{1}^\top w = 1,
 \quad
-\|w\|_1 \leq L,
+\lVert w \rVert_1 \leq L,
 \quad
 w_{\min} \leq w_i \leq w_{\max}.
-\]
+```
 
 Evaluate realized variance, drawdown, Sharpe, and turnover.
 
@@ -536,7 +536,7 @@ Use online CPD to identify market-state changes such as:
 - impact regime;
 - queue instability.
 
----
+
 
 ## 6. Proposed Experiments
 
@@ -552,49 +552,49 @@ Generate piecewise distributions with controlled shifts:
 
 #### Mean shift
 
-\[
+```math
 X_t \sim \mathcal{N}(\mu_1, \Sigma)
 \quad \rightarrow \quad
 X_t \sim \mathcal{N}(\mu_2, \Sigma).
-\]
+```
 
 #### Variance shift
 
-\[
+```math
 X_t \sim \mathcal{N}(0, \Sigma_1)
 \quad \rightarrow \quad
 X_t \sim \mathcal{N}(0, \Sigma_2).
-\]
+```
 
 #### Tail shift
 
-\[
+```math
 X_t \sim \mathcal{N}(0,1)
 \quad \rightarrow \quad
 X_t \sim t_\nu(0,s^2),
-\]
+```
 
 scaled so both regimes have similar variance.
 
 #### Mixture shift
 
-\[
+```math
 X_t \sim 0.5\mathcal{N}(-a,1)+0.5\mathcal{N}(a,1)
-\]
+```
 
 to
 
-\[
+```math
 X_t \sim 0.8\mathcal{N}(-a,1)+0.2\mathcal{N}(a,1).
-\]
+```
 
 #### Copula shift
 
 Keep marginals fixed but change dependence structure:
 
-\[
+```math
 C_1(u,v) \rightarrow C_2(u,v).
-\]
+```
 
 ### Baselines
 
@@ -618,7 +618,7 @@ C_1(u,v) \rightarrow C_2(u,v).
 
 The proposed method should be especially strong when regimes differ in tails, mixture structure, or dependence while preserving first moments.
 
----
+
 
 ## 6.2 Experiment 2: Daily Market Regime Detection
 
@@ -644,7 +644,7 @@ Licensed extensions:
 
 ### Features
 
-\[
+```math
 X_t =
 [
 r_t,
@@ -655,7 +655,7 @@ r_t^2,
 \text{macro changes}_t,
 \text{correlation features}_t
 ].
-\]
+```
 
 ### Tasks
 
@@ -693,7 +693,7 @@ Economic:
 - drawdown;
 - turnover.
 
----
+
 
 ## 6.3 Experiment 3: Regime-Aware Covariance Forecasting
 
@@ -703,7 +703,7 @@ Test whether changepoint-aware segmentation improves covariance forecasts and po
 
 ### Data
 
-Use daily returns for a universe of \(N\) assets, such as:
+Use daily returns for a universe of $N$ assets, such as:
 
 - sector ETFs;
 - liquid equity ETFs;
@@ -727,49 +727,49 @@ flowchart TD
 
 Use only data after the most recent detected break:
 
-\[
+```math
 \widehat{\Sigma}_{t}
 =
 \text{Cov}
 (
 r_{\widehat{\tau}_{last}:t}
 ).
-\]
+```
 
 #### Regime-Weighted Covariance
 
 Use observations from similar regimes:
 
-\[
+```math
 \widehat{\Sigma}_t
 =
-\sum_{s<t}
-w_{s,t} r_s r_s^\top,
-\]
+\sum_{s < t}
+w_{s,t} \, r_s r_s^{\top}.
+```
 
 where
 
-\[
+```math
 w_{s,t}
 \propto
 \exp(-D(z_s,z_t)/\tau)
 \cdot
 p(c_s = c_t).
-\]
+```
 
 #### Shrinkage-Adaptive Covariance
 
 Increase shrinkage during unstable regimes:
 
-\[
+```math
 \widehat{\Sigma}_t
 =
 (1-\gamma_t)\widehat{\Sigma}^{sample}_t
 +
 \gamma_t \widehat{\Sigma}^{target}.
-\]
+```
 
-Let \(\gamma_t\) depend on detected regime instability.
+Let $\gamma_t$ depend on detected regime instability.
 
 ### Baselines
 
@@ -784,15 +784,15 @@ Let \(\gamma_t\) depend on detected regime instability.
 
 Matrix metrics:
 
-\[
-\|\widehat{\Sigma}_t-\Sigma_t^{realized}\|_F,
-\]
+```math
+\lVert \widehat{\Sigma}_t-\Sigma_t^{realized} \rVert_F,
+```
 
 log-Euclidean loss,
 
-\[
-\|\log \widehat{\Sigma}_t-\log \Sigma_t^{realized}\|_F,
-\]
+```math
+\lVert \log \widehat{\Sigma}_t-\log \Sigma_t^{realized} \rVert_F,
+```
 
 and Gaussian KL divergence.
 
@@ -808,8 +808,6 @@ Portfolio metrics:
 ### Expected Result
 
 The strongest contribution is likely here. CPD may not improve mean-return prediction much, but it can improve risk estimation by preventing stale covariance estimates from dominating during regime shifts.
-
----
 
 ## 6.4 Experiment 4: Factor Instability and Structural Breaks
 
@@ -831,7 +829,7 @@ Possible data:
 
 Estimate rolling factor model:
 
-\[
+```math
 r_{i,t}
 =
 \alpha_i
@@ -839,11 +837,11 @@ r_{i,t}
 \beta_i^\top f_t
 +
 \epsilon_{i,t}.
-\]
+```
 
 Detect changes in:
 
-- \(\beta_i\);
+- $\beta_i$;
 - residual covariance;
 - factor return distributions;
 - cross-sectional alpha structure;
@@ -866,7 +864,7 @@ Detect changes in:
 
 ### Metrics
 
-- post-break factor model \(R^2\);
+- post-break factor model $R^2$;
 - factor forecast stability;
 - residual covariance loss;
 - portfolio attribution drift;
@@ -876,7 +874,7 @@ Detect changes in:
 
 This is useful if we want a risk-model or factor-investing paper. It connects CPD to factor lifecycle monitoring.
 
----
+
 
 ## 6.5 Experiment 5: Intraday Volatility and Liquidity Regimes
 
@@ -899,7 +897,7 @@ Licensed options:
 
 ### Features
 
-\[
+```math
 X_t =
 [
 \text{return}_t,
@@ -910,7 +908,7 @@ X_t =
 \text{signed volume}_t,
 \text{trade intensity}_t
 ].
-\]
+```
 
 ### Tasks
 
@@ -942,7 +940,7 @@ X_t =
 
 This direction is highly practical but more difficult because ground truth is weak and online false alarms matter.
 
----
+
 
 ## 6.6 Experiment 6: Online Regime Alert System
 
@@ -952,21 +950,21 @@ Develop an online version that can be used as a decision-support layer.
 
 ### Online Output
 
-At each time \(t\), the system produces:
+At each time $t$, the system produces:
 
-\[
+```math
 P(\text{changepoint at } t),
-\]
+```
 
 regime label:
 
-\[
+```math
 \widehat{c}_t,
-\]
+```
 
 and recommended model action:
 
-\[
+```math
 a_t \in
 \{
 \text{keep model},
@@ -975,7 +973,7 @@ a_t \in
 \text{reduce leverage},
 \text{trigger stress test}
 \}.
-\]
+```
 
 ### Evaluation
 
@@ -998,7 +996,7 @@ Economic:
 
 This makes the project more product-like and closer to a real quant workflow.
 
----
+
 
 ## 7. Methodological Extensions
 
@@ -1008,15 +1006,15 @@ A generic CPD method penalizes the number of changepoints. In finance, we can ad
 
 Possible penalty:
 
-\[
+```math
 \mathcal{P}(\tau)
 =
 \lambda S
 +
-\rho \sum_i \frac{1}{|T_i|}
+\rho \sum_i \frac{1}{\lvert T_i \rvert}
 +
-\eta \sum_t \|w_t(\tau)-w_{t-1}(\tau)\|_1.
-\]
+\eta \sum_t \lVert w_t(\tau)-w_{t-1}(\tau) \rVert_1.
+```
 
 This discourages segmentations that look statistically attractive but cause excessive trading turnover.
 
@@ -1039,7 +1037,7 @@ To reduce sensitivity to outliers, use:
 
 - winsorized features;
 - robust scaling;
-- Student-\(t\) residuals;
+- Student-$t$ residuals;
 - clipped transport cost;
 - CVaR-aware distributional distances.
 
@@ -1054,18 +1052,18 @@ Regime shifts occur at different horizons:
 
 A multi-scale framework can combine detectors:
 
-\[
+```math
 S_t =
 \alpha_1 S_t^{tick}
 +
 \alpha_2 S_t^{intraday}
 +
 \alpha_3 S_t^{daily}.
-\]
+```
 
 This could produce a richer regime state.
 
----
+
 
 ## 8. Evaluation Framework
 
@@ -1093,7 +1091,7 @@ For real data:
 
 For volatility:
 
-\[
+```math
 \text{QLIKE}
 =
 \frac{\widehat{\sigma}_t^2}{\sigma_t^2}
@@ -1104,7 +1102,7 @@ For volatility:
 \right)
 -
 1.
-\]
+```
 
 For covariance:
 
@@ -1131,7 +1129,7 @@ For risk:
 - exposure drift;
 - tail loss.
 
----
+
 
 ## 9. Expected Contributions
 
@@ -1149,7 +1147,7 @@ A CPD framework designed for financial regimes that may differ in tails, depende
 
 A benchmark showing whether detected changepoints improve downstream quant tasks, especially covariance forecasting and portfolio risk control.
 
----
+
 
 ## 10. Research Risks and Mitigation
 
@@ -1162,7 +1160,7 @@ A benchmark showing whether detected changepoints improve downstream quant tasks
 | Serial dependence invalidates thresholds | Financial samples are not i.i.d. | Use block bootstrap and residual-based calibration |
 | Portfolio gains may be eaten by turnover | Frequent regime changes can overtrade | Include turnover penalty and transaction-cost-adjusted metrics |
 
----
+
 
 ## 11. Target Venues
 
@@ -1196,12 +1194,12 @@ If the empirical finance contribution becomes substantial:
 - Management Science;
 - Quantitative Finance.
 
----
+
 
 ## 12. Proposed Timeline
 
 | Phase | Duration | Deliverables |
-|---|---:|---|
+|---|:---:|---|
 | Phase 1: Literature and baseline setup | 2 weeks | baseline CPD implementations, clean benchmark design |
 | Phase 2: Synthetic experiments | 2–3 weeks | controlled distributional break benchmark |
 | Phase 3: Daily market regime experiments | 3 weeks | public-data regime detection and event analysis |
@@ -1209,7 +1207,7 @@ If the empirical finance contribution becomes substantial:
 | Phase 5: Method refinement | 3 weeks | sliced-Wasserstein, penalties, ablations |
 | Phase 6: Writing and submission | 3–4 weeks | full paper draft, figures, tables, appendix |
 
----
+
 
 ## 13. Recommended First Version of the Project
 
@@ -1246,8 +1244,6 @@ Show:
 - improved covariance forecasts reduce GMVP realized risk;
 - gains survive turnover and transaction cost controls.
 
----
-
 ## 14. Conclusion
 
 This project should be framed as a **decision-oriented regime detection framework**, not just a new changepoint detector.
@@ -1258,7 +1254,7 @@ The key message is:
 
 The most promising path is to connect Wasserstein CPD with regime-aware covariance forecasting and portfolio risk control. This creates a coherent story across theory, methodology, and quant application:
 
-\[
+```math
 \text{Distributional CPD}
 \rightarrow
 \text{Regime discovery}
@@ -1266,11 +1262,11 @@ The most promising path is to connect Wasserstein CPD with regime-aware covarian
 \text{Adaptive risk model}
 \rightarrow
 \text{Improved portfolio outcomes}.
-\]
+```
 
 If the empirical results support this pipeline, the project has a strong chance as an ICAIF-style paper and could later be extended into a more theoretical ML/statistics submission.
 
----
+
 
 ## References
 
@@ -1298,8 +1294,3 @@ If the empirical results support this pipeline, the project has a strong chance 
 - Peyré, G., and Cuturi, M. (2019). *Computational Optimal Transport*.
 - Ramdas, A., García Trillos, N., and Cuturi, M. (2015). *On Wasserstein Two-Sample Testing and Related Families of Nonparametric Tests*.
 - Villani, C. (2009). *Optimal Transport: Old and New*.
-
-### Local Project References
-
-- `changepoint_detection.pdf`: uploaded project reference on Wasserstein CPD.
-- `proposal(2).pdf`: uploaded project proposal on global Wasserstein change point detection via Wasserstein Proximal Coordinate Gradient optimization.
