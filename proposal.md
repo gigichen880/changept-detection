@@ -1,4 +1,4 @@
-# Proposal: Distributional Regime Shift Detection via Wasserstein Change Point Optimization for Quantitative Finance
+# Proposal: Distributional Regime Shift Detection for Adaptive Quant Decision Systems
 
 ## 1. Executive Summary
 
@@ -6,17 +6,17 @@ Financial markets are not stationary. The statistical relationships used by trad
 
 This project proposes a research framework for **distributional change point detection (CPD)** in quantitative finance, with a focus on detecting **regime shifts** that are economically meaningful for downstream models. The core idea is to treat each market regime as a probability distribution over financial states, then detect boundaries by comparing adjacent segment distributions using optimal transport, especially Wasserstein distances.
 
-Building on the current proposal, which formulates CPD as a **global Wasserstein segmentation problem** rather than a local sliding-window test, we propose extending the framework toward finance-specific applications: covariance forecasting, portfolio risk control, factor instability detection, and online market-state monitoring.
+Building on the current proposal, which formulates CPD as a **global Wasserstein segmentation problem** rather than a local sliding-window test, we propose extending the framework toward finance-specific applications: regime-aware risk control, model governance, alpha signal validation, tail-risk monitoring, factor lifecycle diagnostics, covariance and volatility forecasting, and online market-state monitoring.
 
 The central research question is:
 
-> Can distributional change point detection identify financial regime shifts that improve downstream quant decisions, especially risk forecasting and portfolio allocation?
+> Can distributional change point detection identify financial regime shifts that improve downstream quant decisions, such as risk control, model retraining, signal allocation, factor monitoring, tail-risk estimation, and portfolio construction?
 
 The project has three main contributions:
 
 1. **Methodological contribution**: develop a global Wasserstein-based segmentation framework for detecting distributional market regime shifts.
 2. **Finance-specific contribution**: adapt the detector to volatility, covariance, factor, and microstructure features.
-3. **Empirical contribution**: evaluate not only statistical breakpoint accuracy, but also downstream economic value through covariance loss, GMVP performance, VaR/CVaR calibration, drawdown control, and turnover-adjusted returns.
+3. **Empirical contribution**: evaluate not only statistical breakpoint accuracy, but also downstream economic value through risk-control decisions, retraining triggers, signal performance by regime, VaR/CVaR calibration, drawdown control, turnover, and portfolio outcomes.
 
 
 
@@ -285,7 +285,7 @@ The pipeline has five stages:
    Cluster segments into recurring regimes, such as calm, stress, recovery, liquidity shock, or high-correlation regimes.
 
 4. **Downstream adaptation**  
-   Use detected regimes to adjust forecasting models, covariance estimators, portfolio constraints, or execution strategies.
+   Use detected regimes to adjust risk constraints, retraining schedules, signal allocation, factor monitoring, tail-risk estimates, forecasting models, or execution strategies.
 
 5. **Evaluation**  
    Measure both breakpoint accuracy and economic value.
@@ -458,84 +458,147 @@ This allows repeated regimes to be identified. For example:
 
 
 
-## 5.6 Downstream Regime-Aware Models
+## 5.6 Downstream Regime-Aware Decision Modules
 
-The detector becomes useful when it improves downstream quant systems.
+The detector becomes useful only when the detected regimes change downstream decisions. After CPD identifies changepoints and clusters the resulting segments into recurring regimes, each time point receives a regime label or soft regime posterior. The downstream layer then asks:
 
-### Covariance Forecasting
+> Given the current regime, what should the quant system do differently?
 
-Use regimes to decide which historical observations should receive more weight:
+We propose evaluating several downstream modules. These are ordered by practical promise rather than by connection to any single prior project.
 
-```math
-\widehat{\Sigma}_{t+1}
-=
-\sum_{i \in \mathcal{N}(t)}
-w_i^{\text{regime}}
-r_i r_i^\top.
-```
+### Direction 1: Regime-Aware Risk Control and Portfolio Constraints
 
-Possible weighting:
+This is the most immediately applicable direction. The detected regime controls the amount of risk the portfolio is allowed to take, rather than only changing a covariance estimate.
 
-```math
-w_i
-\propto
-\exp(-D(z_i,z_t)/\tau)
-\cdot
-\mathbb{1}\{c_i = c_t\}.
-```
+For example, in a calm regime the system may allow normal leverage, normal concentration, and normal rebalance frequency. In a stress or liquidity-stress regime, it may reduce gross exposure, tighten position bounds, increase diversification, raise transaction-cost assumptions, or require a larger cash buffer.
 
-Or soft version:
-
-```math
-w_i
-\propto
-\exp(-D(z_i,z_t)/\tau)
-\cdot
-p(c_i = c_t).
-```
-
-### Portfolio Allocation
-
-Use the regime-aware covariance forecast in a GMVP problem:
+A regime-aware portfolio problem can be written as:
 
 ```math
 \min_w
-w^\top \widehat{\Sigma}_{t+1} w
+\quad
+w^\top \widehat{\Sigma}_t w
 ```
 
-subject to
+subject to regime-dependent constraints:
 
 ```math
-\mathbf{1}^\top w = 1,
-\quad
-\lVert w \rVert_1 \leq L,
-\quad
-w_{\min} \leq w_i \leq w_{\max}.
+\mathbf{1}^{\top}w = 1,
+\qquad
+\lVert w \rVert_1 \leq L(c_t),
+\qquad
+w_{\min}(c_t) \leq w_i \leq w_{\max}(c_t),
 ```
 
-Evaluate realized variance, drawdown, Sharpe, and turnover.
+where $c_t$ is the current detected regime. The key output is not only a portfolio, but also a risk recommendation such as **keep normal exposure**, **tighten leverage**, **reduce turnover**, or **trigger stress testing**.
 
-### Risk Monitoring
+### Direction 2: Regime-Aware Model Governance and Retraining
 
-Use detected regimes to adjust:
+CPD can act as a model-staleness detector. Instead of retraining models on a fixed calendar schedule, the system retrains or recalibrates only when the data distribution has changed enough.
 
-- VaR model;
-- CVaR model;
-- leverage cap;
-- shrinkage intensity;
-- volatility lookback window;
-- stress-test scenario set.
+A simple decision rule is:
 
-### Execution / Microstructure
+```math
+a_t =
+\begin{cases}
+\text{keep model}, & \text{if no meaningful regime shift is detected},\\
+\text{recalibrate model}, & \text{if a moderate shift is detected},\\
+\text{retrain model and reduce risk}, & \text{if a major shift is detected}.
+\end{cases}
+```
 
-Use online CPD to identify market-state changes such as:
+This is relevant for alpha models, risk models, volatility models, execution-cost models, factor models, and portfolio optimizers. The empirical question is whether CPD-triggered retraining improves out-of-sample performance compared with fixed monthly or rolling-window retraining.
 
-- liquidity shock;
-- order-flow imbalance regime;
-- spread widening;
-- impact regime;
-- queue instability.
+### Direction 3: Regime-Aware Alpha Signal Validation and Allocation
 
+Many alpha signals are regime-dependent. A signal may appear weak on average but perform strongly in specific regimes, or a signal may decay because the market has entered a regime where its mechanism no longer works.
+
+For a signal score $s_t$ and future return $r_{t+1}$, we can estimate regime-conditional performance:
+
+```math
+IC_k
+=
+\mathrm{Corr}(s_t, r_{t+1} \mid c_t = k).
+```
+
+The downstream system can then allocate capital conditionally:
+
+```math
+\omega_j(c_t)
+\propto
+\max\{0, \widehat{IC}_{j,c_t}\},
+```
+
+where $\omega_j(c_t)$ is the capital or risk allocation to signal $j$ in regime $c_t$. This direction connects regime detection to strategy selection: momentum, mean reversion, carry, value, quality, lead-lag, and liquidity signals may each have different regime profiles.
+
+### Direction 4: Regime-Aware Tail-Risk, VaR, and CVaR Forecasting
+
+Regime labels can also improve tail-risk estimation. Instead of estimating VaR and CVaR from all historical observations, the model can emphasize observations from regimes similar to the current one.
+
+A regime-conditioned CVaR estimator can be written as:
+
+```math
+\widehat{\mathrm{CVaR}}_{\alpha,t}
+=
+\mathbb{E}
+\left[
+L_s
+\mid
+L_s \geq \widehat{\mathrm{VaR}}_{\alpha,t},
+\ c_s \approx c_t
+\right],
+```
+
+where $L_s$ is portfolio loss and $c_s \approx c_t$ means that past observations come from the same or similar regimes. This is especially useful when calm-period data underestimates crisis-period loss distributions.
+
+### Direction 5: Regime-Aware Factor Lifecycle Monitoring
+
+For factor investing and risk modeling, the detected regimes can be used to monitor whether factor behavior remains stable. The system can track factor return distributions, exposure stability, residual distributions, factor crowding, and attribution drift across regimes.
+
+A rolling factor model is:
+
+```math
+r_{i,t}
+=
+\alpha_i
++
+\beta_i^{\top} f_t
++
+\epsilon_{i,t}.
+```
+
+CPD can be applied to factor returns, estimated betas, residuals, or cross-sectional attribution errors. The downstream action could be to reduce a factor's weight, re-estimate exposures, increase monitoring, or flag a factor as unstable.
+
+### Direction 6: Regime-Aware Covariance and Volatility Forecasting
+
+Covariance and volatility forecasting remain important downstream tasks, but they should be treated as one application rather than the only application.
+
+A regime-weighted covariance estimator is:
+
+```math
+\widehat{\Sigma}_t
+=
+\sum_{s < t}
+w_{s,t} \, r_s r_s^{\top},
+```
+
+with weights such as:
+
+```math
+w_{s,t}
+\propto
+\exp(-D(z_s,z_t)/\tau)
+\cdot
+p(c_s = c_t).
+```
+
+This uses historical observations that are distributionally similar to the current regime, instead of relying only on a fixed rolling window.
+
+### Direction 7: Execution, Liquidity, and Online Regime Alerts
+
+For intraday data, the same framework can detect liquidity shocks, spread widening, order-flow imbalance regimes, or market-impact regimes. The downstream decision is execution control: slow down execution, reduce child order size, use more passive orders, widen quotes, or avoid providing liquidity during toxic-flow regimes.
+
+This direction is highly practical but requires higher-frequency data and careful online evaluation.
 
 
 ## 6. Proposed Experiments
@@ -620,11 +683,11 @@ The proposed method should be especially strong when regimes differ in tails, mi
 
 
 
-## 6.2 Experiment 2: Daily Market Regime Detection
+## 6.2 Experiment 2: Daily Market Regime Discovery and Event Alignment
 
 ### Goal
 
-Detect major market regimes in daily asset returns and evaluate whether detected regimes improve forecasting.
+Detect major market regimes in daily asset, factor, volatility, and macro features, then evaluate whether the detected regimes are stable, interpretable, and aligned with known market events.
 
 ### Data
 
@@ -634,7 +697,7 @@ Public data options:
 - industry portfolio returns;
 - ETF returns;
 - FRED macro variables;
-- VIX or volatility proxy if available.
+- VIX or volatility proxies if available.
 
 Licensed extensions:
 
@@ -648,7 +711,7 @@ Licensed extensions:
 X_t =
 [
 r_t,
-|r_t|,
+\lvert r_t \rvert,
 r_t^2,
 \text{realized volatility}_t,
 \text{factor returns}_t,
@@ -660,227 +723,230 @@ r_t^2,
 ### Tasks
 
 1. Detect changepoints.
-2. Cluster segments into regimes.
-3. Compare detected regimes to known crisis periods.
-4. Use regimes for downstream volatility or covariance forecasting.
+2. Cluster segments into recurring regimes.
+3. Compare detected regimes to known stress periods.
+4. Measure regime stability under resampling and alternative feature sets.
+5. Produce interpretable regime summaries.
 
 ### Baselines
 
-- rolling-window volatility model;
-- EWMA;
-- GARCH;
-- HMM;
+- HMM / Markov-switching models;
 - PELT;
 - WBS;
 - MMD CPD;
-- proposed Wasserstein CPD.
+- energy-distance CPD;
+- sliding-window Wasserstein CPD;
+- proposed global Wasserstein CPD.
 
 ### Evaluation
 
-Statistical:
-
-- break dates around known stress events;
+- event alignment around known stress periods;
 - segment stability;
 - regime persistence;
-- out-of-sample regime assignment consistency.
-
-Economic:
-
-- volatility forecast QLIKE;
-- covariance forecast Frobenius loss;
-- GMVP realized variance;
-- Sharpe ratio;
-- drawdown;
-- turnover.
+- out-of-sample regime assignment consistency;
+- regime interpretability through feature summaries.
 
 
 
-## 6.3 Experiment 3: Regime-Aware Covariance Forecasting
+## 6.3 Experiment 3: Regime-Aware Risk Control and Portfolio Constraints
 
 ### Goal
 
-Test whether changepoint-aware segmentation improves covariance forecasts and portfolio risk control.
-
-### Data
-
-Use daily returns for a universe of $N$ assets, such as:
-
-- sector ETFs;
-- liquid equity ETFs;
-- top CRSP equities;
-- Fama-French industry portfolios.
+Test whether detected regimes improve portfolio risk control by adapting constraints, leverage, turnover limits, and exposure caps.
 
 ### Pipeline
 
 ```mermaid
 flowchart TD
-    A[Daily returns] --> B[Construct rolling covariance features]
-    B --> C[Detect distributional changepoints]
-    C --> D[Cluster regimes]
-    D --> E[Estimate regime-aware covariance]
-    E --> F[GMVP / risk model evaluation]
+    A[Daily asset returns and market features] --> B[Detect distributional changepoints]
+    B --> C[Cluster segments into regimes]
+    C --> D[Assign current regime]
+    D --> E[Set regime-dependent risk constraints]
+    E --> F[Construct portfolio]
+    F --> G[Evaluate realized risk and drawdown]
 ```
 
-### Regime-Aware Covariance Estimators
-
-#### Post-Break Rolling Covariance
-
-Use only data after the most recent detected break:
+### Regime-Dependent Constraint Examples
 
 ```math
-\widehat{\Sigma}_{t}
-=
-\text{Cov}
-(
-r_{\widehat{\tau}_{last}:t}
-).
+\lVert w_t \rVert_1 \leq L(c_t),
+\qquad
+\mathrm{Turnover}(w_t,w_{t-1}) \leq U(c_t),
 ```
 
-#### Regime-Weighted Covariance
-
-Use observations from similar regimes:
+and
 
 ```math
-\widehat{\Sigma}_t
-=
-\sum_{s < t}
-w_{s,t} \, r_s r_s^{\top}.
+w_{\min}(c_t)
+\leq
+w_{i,t}
+\leq
+w_{\max}(c_t).
 ```
 
-where
-
-```math
-w_{s,t}
-\propto
-\exp(-D(z_s,z_t)/\tau)
-\cdot
-p(c_s = c_t).
-```
-
-#### Shrinkage-Adaptive Covariance
-
-Increase shrinkage during unstable regimes:
-
-```math
-\widehat{\Sigma}_t
-=
-(1-\gamma_t)\widehat{\Sigma}^{sample}_t
-+
-\gamma_t \widehat{\Sigma}^{target}.
-```
-
-Let $\gamma_t$ depend on detected regime instability.
+In calm regimes, the constraints may be looser. In stress or liquidity regimes, leverage, concentration, and turnover limits become tighter.
 
 ### Baselines
 
-- rolling sample covariance;
-- EWMA covariance;
-- Ledoit-Wolf shrinkage;
-- persistence;
-- HMM covariance regimes;
-- existing regime-aware similarity forecasting model.
+- fixed portfolio constraints;
+- volatility-threshold risk controls;
+- drawdown-threshold de-risking;
+- HMM-based regime constraints;
+- proposed CPD-regime constraints.
 
 ### Metrics
 
-Matrix metrics:
-
-```math
-\lVert \widehat{\Sigma}_t-\Sigma_t^{realized} \rVert_F,
-```
-
-log-Euclidean loss,
-
-```math
-\lVert \log \widehat{\Sigma}_t-\log \Sigma_t^{realized} \rVert_F,
-```
-
-and Gaussian KL divergence.
-
-Portfolio metrics:
-
-- GMVP realized variance;
-- annualized Sharpe;
-- turnover;
+- realized variance;
 - maximum drawdown;
 - CVaR;
-- transaction-cost-adjusted performance.
+- turnover;
+- transaction-cost-adjusted return;
+- leverage stability;
+- frequency of unnecessary de-risking;
+- performance during stress periods.
 
 ### Expected Result
 
-The strongest contribution is likely here. CPD may not improve mean-return prediction much, but it can improve risk estimation by preventing stale covariance estimates from dominating during regime shifts.
+This experiment tests whether CPD regimes are useful as **decision constraints**, not merely as forecast features. It is one of the most practical downstream applications because it maps directly to portfolio and risk-management actions.
 
-## 6.4 Experiment 4: Factor Instability and Structural Breaks
+
+
+## 6.4 Experiment 4: Regime-Aware Model Governance and Retraining
 
 ### Goal
 
-Detect when factor relationships become unstable.
+Evaluate whether CPD-triggered retraining improves model robustness compared with fixed retraining schedules.
 
-### Data
+### Setup
 
-Possible data:
+Choose one or more forecasting or scoring models, such as:
 
-- Fama-French factor portfolios;
-- industry portfolios;
-- CRSP-Compustat panel;
-- custom factor returns;
-- Barra-like or risk-model factor exposures if available.
+- volatility forecasting model;
+- return or alpha scoring model;
+- factor exposure model;
+- transaction-cost model;
+- covariance or risk model.
 
-### Model
-
-Estimate rolling factor model:
+At each time $t$, the CPD system recommends one of the following actions:
 
 ```math
-r_{i,t}
-=
-\alpha_i
-+
-\beta_i^\top f_t
-+
-\epsilon_{i,t}.
+a_t \in
+\{
+\text{keep model},
+\text{recalibrate},
+\text{retrain},
+\text{retrain and reduce risk}
+\}.
 ```
-
-Detect changes in:
-
-- $\beta_i$;
-- residual covariance;
-- factor return distributions;
-- cross-sectional alpha structure;
-- factor crowding proxies.
-
-### CPD Targets
-
-1. Factor return distribution shifts.
-2. Factor exposure instability.
-3. Residual covariance breaks.
-4. Cross-sectional dispersion breaks.
 
 ### Baselines
 
-- Bai-Perron structural breaks;
-- rolling regression instability tests;
-- panel common-break methods;
-- PELT on factor residuals;
-- Wasserstein CPD on residual distributions.
+- fixed monthly retraining;
+- fixed quarterly retraining;
+- rolling-window retraining;
+- volatility-threshold retraining;
+- HMM-triggered retraining;
+- proposed CPD-triggered retraining.
 
 ### Metrics
 
-- post-break factor model $R^2$;
-- factor forecast stability;
-- residual covariance loss;
-- portfolio attribution drift;
-- cross-sectional rank correlation decay.
+- post-shift forecast loss;
+- time-to-recovery after detected shifts;
+- unnecessary retraining rate;
+- model degradation before retraining;
+- cost-adjusted portfolio or forecast performance;
+- stability of model parameters.
 
 ### Expected Result
 
-This is useful if we want a risk-model or factor-investing paper. It connects CPD to factor lifecycle monitoring.
+This direction is highly applicable because production quant systems need rules for when models have become stale. The paper can show that distributional changepoints are useful operational signals, not only statistical breakpoints.
 
 
 
-## 6.5 Experiment 5: Intraday Volatility and Liquidity Regimes
+## 6.5 Experiment 5: Regime-Aware Alpha, Factor, and Tail-Risk Diagnostics
 
 ### Goal
 
-Detect intraday shifts in volatility and liquidity states.
+Use detected regimes to explain when signals, factors, or tail-risk models work or fail.
+
+### Part A: Alpha Signal Validation
+
+For each signal $j$, estimate its regime-conditional performance:
+
+```math
+IC_{j,k}
+=
+\mathrm{Corr}(s_{j,t}, r_{t+1} \mid c_t = k).
+```
+
+Then test whether regime-conditioned signal allocation improves performance:
+
+```math
+\omega_j(c_t)
+\propto
+\max\{0,\widehat{IC}_{j,c_t}\}.
+```
+
+### Part B: Factor Lifecycle Monitoring
+
+Apply CPD and regime clustering to:
+
+- factor return distributions;
+- rolling betas;
+- residual distributions;
+- cross-sectional attribution errors;
+- factor drawdowns and crowding proxies.
+
+Evaluate whether regime labels identify factor instability earlier than rolling regression diagnostics.
+
+### Part C: Tail-Risk Forecasting
+
+Estimate VaR and CVaR using observations from similar regimes:
+
+```math
+\widehat{\mathrm{CVaR}}_{\alpha,t}
+=
+\mathbb{E}
+\left[
+L_s
+\mid
+L_s \geq \widehat{\mathrm{VaR}}_{\alpha,t},
+\ c_s \approx c_t
+\right].
+```
+
+### Baselines
+
+- unconditional signal performance;
+- rolling-window signal validation;
+- Bai-Perron structural break tests;
+- rolling factor regression diagnostics;
+- historical VaR/CVaR;
+- volatility-scaled VaR/CVaR;
+- HMM-regime diagnostics.
+
+### Metrics
+
+- regime-conditional information coefficient;
+- alpha Sharpe by regime;
+- factor exposure stability;
+- post-break factor model $R^2$;
+- attribution drift;
+- VaR violation rate;
+- CVaR loss;
+- stress-period tail calibration.
+
+### Expected Result
+
+This experiment package is broader than covariance forecasting. It tests whether distributional regimes help explain **which signals work, which factors are unstable, and when tail-risk estimates should become more conservative**.
+
+
+
+## 6.6 Experiment 6: Intraday Liquidity Regimes and Online Alerts
+
+### Goal
+
+Develop an online version that can be used as a real-time alert layer for execution, liquidity, and market-state monitoring.
 
 ### Data
 
@@ -910,44 +976,6 @@ X_t =
 ].
 ```
 
-### Tasks
-
-- detect volatility regime shifts;
-- detect liquidity shocks;
-- detect spread-widening episodes;
-- detect order-flow imbalance persistence changes;
-- evaluate execution-state relevance.
-
-### Baselines
-
-- rolling z-score alarms;
-- BOCPD;
-- robust online CPD;
-- kernel CPD;
-- Wasserstein local detector;
-- deep sequence detector if data volume supports it.
-
-### Metrics
-
-- detection delay;
-- false alarm rate;
-- average run length;
-- realized spread prediction error;
-- market-impact prediction error;
-- slippage reduction in simulated execution.
-
-### Expected Result
-
-This direction is highly practical but more difficult because ground truth is weak and online false alarms matter.
-
-
-
-## 6.6 Experiment 6: Online Regime Alert System
-
-### Goal
-
-Develop an online version that can be used as a decision-support layer.
-
 ### Online Output
 
 At each time $t$, the system produces:
@@ -956,45 +984,48 @@ At each time $t$, the system produces:
 P(\text{changepoint at } t),
 ```
 
-regime label:
+a regime label:
 
 ```math
 \widehat{c}_t,
 ```
 
-and recommended model action:
+and a recommended action:
 
 ```math
 a_t \in
 \{
-\text{keep model},
-\text{shorten lookback},
-\text{increase shrinkage},
-\text{reduce leverage},
-\text{trigger stress test}
+\text{normal execution},
+\text{slow execution},
+\text{reduce child order size},
+\text{use passive orders},
+\text{widen quotes},
+\text{avoid toxic flow}
 \}.
 ```
 
-### Evaluation
+### Baselines
 
-Statistical:
+- rolling z-score alarms;
+- BOCPD;
+- robust online CPD;
+- kernel CPD;
+- Wasserstein local detector;
+- HMM liquidity regimes.
+
+### Metrics
 
 - detection delay;
 - false alarm rate;
 - average run length;
-- calibration of changepoint probabilities.
-
-Economic:
-
-- risk forecast improvement;
-- portfolio drawdown reduction;
-- turnover penalty;
-- execution cost improvement;
-- response speed during crisis periods.
+- realized spread prediction error;
+- market-impact prediction error;
+- implementation shortfall;
+- slippage reduction in simulated execution.
 
 ### Expected Result
 
-This makes the project more product-like and closer to a real quant workflow.
+This direction is highly practical and product-like, but it is more data-intensive. It is a strong extension after the daily-data decision-system experiments are established.
 
 
 
@@ -1087,7 +1118,7 @@ For real data:
 - consistency across related assets;
 - segment clustering quality.
 
-## 8.2 Forecasting Metrics
+## 8.2 Forecasting and Risk Metrics
 
 For volatility:
 
@@ -1111,14 +1142,15 @@ For covariance:
 - Gaussian KL;
 - log-Euclidean loss.
 
-For risk:
+For tail risk:
 
-- VaR coverage;
+- VaR violation rate;
+- VaR coverage calibration;
 - CVaR loss;
-- tail calibration;
-- stress-period drawdown.
+- stress-period drawdown;
+- tail-loss ranking accuracy.
 
-## 8.3 Portfolio Metrics
+## 8.3 Decision and Portfolio Metrics
 
 - realized variance;
 - annualized Sharpe;
@@ -1127,7 +1159,20 @@ For risk:
 - transaction-cost-adjusted return;
 - leverage stability;
 - exposure drift;
-- tail loss.
+- unnecessary de-risking rate;
+- time-to-recovery after regime shifts;
+- retraining frequency and retraining efficiency.
+
+## 8.4 Signal and Factor Diagnostics
+
+- regime-conditional information coefficient;
+- alpha Sharpe by regime;
+- factor return stability;
+- factor exposure stability;
+- post-break factor model $R^2$;
+- attribution drift;
+- cross-sectional rank correlation decay;
+- factor drawdown by regime.
 
 
 
@@ -1145,7 +1190,7 @@ A CPD framework designed for financial regimes that may differ in tails, depende
 
 ### Contribution 3: Decision-Oriented Evaluation
 
-A benchmark showing whether detected changepoints improve downstream quant tasks, especially covariance forecasting and portfolio risk control.
+A benchmark showing whether detected changepoints improve downstream quant decisions, including risk-control constraints, model retraining triggers, alpha signal allocation, factor monitoring, tail-risk calibration, and portfolio outcomes.
 
 
 
@@ -1156,9 +1201,9 @@ A benchmark showing whether detected changepoints improve downstream quant tasks
 | Wasserstein computation is expensive | Full OT does not scale well in high dimension | Use sliced Wasserstein, entropic OT, embeddings, or coordinate-wise approximations |
 | CPD overfits crisis periods | Detectors may split one crisis into many nearby breaks | Add minimum segment length and finance-aware penalties |
 | Real changepoints have no ground truth | Market regimes are latent | Use synthetic truth plus downstream economic validation |
-| Mean-return improvement may be weak | Return prediction is difficult | Focus on volatility, covariance, and risk forecasting |
+| Mean-return improvement may be weak | Return prediction is difficult | Evaluate decision-oriented tasks such as risk control, retraining, signal gating, tail-risk calibration, and factor stability |
 | Serial dependence invalidates thresholds | Financial samples are not i.i.d. | Use block bootstrap and residual-based calibration |
-| Portfolio gains may be eaten by turnover | Frequent regime changes can overtrade | Include turnover penalty and transaction-cost-adjusted metrics |
+| Decision rules may overreact | Frequent regime changes can cause overtrading, unnecessary retraining, or excessive de-risking | Include turnover penalties, retraining-cost metrics, false-alert analysis, and transaction-cost-adjusted metrics |
 
 
 
@@ -1169,8 +1214,9 @@ A benchmark showing whether detected changepoints improve downstream quant tasks
 This project is highly suitable for ICAIF if the paper emphasizes:
 
 - financial regime detection;
-- covariance forecasting;
-- portfolio risk improvement;
+- adaptive risk-control decisions;
+- model governance and retraining triggers;
+- signal and factor diagnostics by regime;
 - realistic market data;
 - decision-oriented evaluation.
 
@@ -1203,8 +1249,8 @@ If the empirical finance contribution becomes substantial:
 | Phase 1: Literature and baseline setup | 2 weeks | baseline CPD implementations, clean benchmark design |
 | Phase 2: Synthetic experiments | 2–3 weeks | controlled distributional break benchmark |
 | Phase 3: Daily market regime experiments | 3 weeks | public-data regime detection and event analysis |
-| Phase 4: Covariance forecasting integration | 4 weeks | regime-aware covariance forecasts and GMVP evaluation |
-| Phase 5: Method refinement | 3 weeks | sliced-Wasserstein, penalties, ablations |
+| Phase 4: Downstream decision modules | 4 weeks | risk-control constraints, retraining triggers, and signal/factor diagnostics |
+| Phase 5: Method refinement | 3 weeks | sliced-Wasserstein, finance-aware penalties, online variants, ablations |
 | Phase 6: Writing and submission | 3–4 weeks | full paper draft, figures, tables, appendix |
 
 
@@ -1213,36 +1259,50 @@ If the empirical finance contribution becomes substantial:
 
 The most feasible and publishable first version is:
 
-> **Distributional Regime Shift Detection for Regime-Aware Covariance Forecasting**
+> **Distributional Regime Shift Detection for Adaptive Quant Decision Systems**
 
-This version avoids the hardest online microstructure setting while staying strongly relevant to quantitative finance.
+This version keeps the methodological core of Wasserstein CPD, but avoids positioning the project as only a covariance-forecasting paper. The first version should demonstrate that detected distributional regimes are useful for multiple downstream decisions.
 
 ### First Paper Scope
 
 Use:
 
 - synthetic distributional breaks;
-- public daily factor/ETF/industry data;
-- covariance forecasting;
-- GMVP portfolio evaluation.
+- public daily factor, ETF, and industry portfolio data;
+- regime discovery and event alignment;
+- regime-aware risk-control constraints;
+- CPD-triggered model retraining or recalibration;
+- regime-conditional alpha, factor, or tail-risk diagnostics.
 
 Compare:
 
-- rolling covariance;
-- EWMA;
-- Ledoit-Wolf;
 - PELT;
 - WBS;
 - kernel CPD;
-- HMM;
-- proposed Wasserstein CPD.
+- energy-distance CPD;
+- HMM / Markov-switching regimes;
+- rolling-window or calendar-based decision rules;
+- proposed global Wasserstein CPD.
 
 Show:
 
 - Wasserstein CPD detects moment-invariant distributional shifts;
-- detected regimes improve covariance forecasting;
-- improved covariance forecasts reduce GMVP realized risk;
-- gains survive turnover and transaction cost controls.
+- detected regimes are stable and economically interpretable;
+- regime labels improve at least two downstream decisions;
+- adaptive decisions reduce drawdowns, improve tail-risk calibration, reduce model staleness, or improve regime-conditioned signal allocation;
+- gains survive turnover, transaction cost, false-alert, and retraining-cost controls.
+
+### Suggested Core Experiments for Version 1
+
+A focused first paper could use three core experiments:
+
+1. **Synthetic distributional breaks** to verify that the detector finds tail, mixture, and dependence shifts.
+2. **Daily market regime discovery** to show interpretable regimes around stress and recovery periods.
+3. **Two downstream decision tasks**, preferably:
+   - regime-aware risk-control constraints; and
+   - CPD-triggered model governance or regime-aware signal/factor diagnostics.
+
+Covariance and volatility forecasting can still appear as supporting tasks, but they should not be the only downstream evidence.
 
 ## 14. Conclusion
 
@@ -1250,21 +1310,21 @@ This project should be framed as a **decision-oriented regime detection framewor
 
 The key message is:
 
-> Financial regime shifts are often distributional. By detecting changes in the geometry of market-state distributions, we can build adaptive quant models that know when historical data have become stale.
+> Financial regime shifts are often distributional. By detecting changes in the geometry of market-state distributions, we can build adaptive quant systems that know when historical data have become stale and when downstream decisions should change.
 
-The most promising path is to connect Wasserstein CPD with regime-aware covariance forecasting and portfolio risk control. This creates a coherent story across theory, methodology, and quant application:
+The most promising path is to connect Wasserstein CPD with a broader adaptive decision layer:
 
 ```math
 \text{Distributional CPD}
 \rightarrow
 \text{Regime discovery}
 \rightarrow
-\text{Adaptive risk model}
+\text{Adaptive decision layer}
 \rightarrow
-\text{Improved portfolio outcomes}.
+\text{Improved risk, model, signal, and portfolio outcomes}.
 ```
 
-If the empirical results support this pipeline, the project has a strong chance as an ICAIF-style paper and could later be extended into a more theoretical ML/statistics submission.
+The downstream layer can include risk-control constraints, model retraining triggers, alpha signal allocation, factor lifecycle monitoring, tail-risk estimation, covariance and volatility forecasting, and online execution alerts. If the empirical results show that detected regimes improve multiple decision tasks, the project has a strong chance as an ICAIF-style paper and can later be extended toward a more theoretical ML/statistics submission.
 
 
 
