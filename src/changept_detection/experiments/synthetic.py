@@ -23,7 +23,11 @@ from changept_detection.baselines.core import (
     duplicate_rate,
     run_baseline,
 )
-from changept_detection.experiments.calibration import CalibratedThresholds, calibrate_experiment_methods
+from changept_detection.experiments.calibration import (
+    CalibratedThresholds,
+    calibrate_for_case,
+    calibration_config_key,
+)
 from changept_detection.method.proposed import regime_labels_from_prototypes
 
 
@@ -133,7 +137,6 @@ BASELINE_SETS: dict[str, list[str]] = {
         "coordinate_w2_matched_filter",
         PROPOSED_PRIMARY,
         "proposed_local_proto_no_global",
-        "rolling_feature_kmeans",
     ],
 }
 
@@ -281,18 +284,23 @@ def generate_s2(
     mode_separation: float = 3.0,
     serial_dependence: str = "IID",
     centered: bool = False,
+    demeaned: bool | None = None,
 ) -> SyntheticCase:
     rng = np.random.default_rng(seed)
     sigma = 1.0
     a = mode_separation * sigma
-    if centered:
-        # Symmetric modes at +/-a with matched variance; only weights change (mean stays ~0).
+    use_demeaned = demeaned if demeaned is not None else centered
+    if use_demeaned:
+        # Symmetric modes at +/-a; reweight then remove segment mean so E[X] ~ 0.
         def draw(n: int, w_left: float) -> np.ndarray:
             z = rng.random(n) < w_left
             return np.where(z, -a, a) + rng.normal(0.0, sigma, size=n)
 
-        x1 = draw(n_per_segment, 0.5)[:, None]
-        x2 = draw(n_per_segment, 0.5 + delta)[:, None]
+        x1 = draw(n_per_segment, 0.5)
+        x2 = draw(n_per_segment, 0.5 + delta)
+        x2 = x2 - (-2.0 * a * delta)  # E[draw(0.5+delta)] = -2a*delta
+        x1 = x1[:, None]
+        x2 = x2[:, None]
     else:
         x1 = sample_mixture(rng, n_per_segment, 0.5, a, sigma)[:, None]
         x2 = sample_mixture(rng, n_per_segment, 0.5 + delta, a, sigma)[:, None]
@@ -314,7 +322,8 @@ def generate_s2(
             "delta": delta,
             "mode_separation": mode_separation,
             "serial_dependence": serial_dependence,
-            "centered": centered,
+            "centered": use_demeaned,
+            "demeaned": use_demeaned,
         },
     )
 
@@ -523,7 +532,7 @@ def quick_grid(experiment: str) -> list[dict[str, Any]]:
         return [{"nu": nu, "n_per_segment": 120} for nu in [6, 20]]
     if experiment == "S2":
         return [
-            {"delta": delta, "mode_separation": 3.0, "n_per_segment": 120, "centered": True}
+            {"delta": delta, "mode_separation": 3.0, "n_per_segment": 120, "demeaned": True}
             for delta in [0.05, 0.2]
         ]
     if experiment == "S3":
@@ -658,8 +667,8 @@ def generate_null_series(case: SyntheticCase, n_null: int, base_seed: int = 10_0
             x = scale * rng.standard_t(df=nu, size=(length, 1))
         elif exp == "S2":
             a = float(params.get("mode_separation", 3.0))
-            centered = bool(params.get("centered", False))
-            if centered:
+            use_demeaned = bool(params.get("demeaned", params.get("centered", False)))
+            if use_demeaned:
                 z = rng.random(length) < 0.5
                 x = np.where(z, -a, a)[:, None] + rng.normal(0.0, 1.0, size=(length, 1))
             else:
@@ -701,15 +710,20 @@ def baseline_kwargs(key: str, case: SyntheticCase, window: int, n_bkps: int | No
         return {"n_states": min(4, max(2, len(case.changepoints) + 1)), "min_distance": window}
     if key.startswith("proposed"):
         metric = "bures" if case.experiment in {"S3", "S4"} else "sliced_wasserstein"
+        if case.regime_labels is None:
+            n_proto = 3
+        else:
+            n_proto = len(np.unique(case.regime_labels))
         return {
             "window": window,
             "min_persistence": 2,
             "min_distance": window,
             "metric": metric,
             "horizon": max(2 * window, 80),
-            "n_prototypes": min(4, max(2, len(case.regime_labels or []) or 3)),
+            "n_prototypes": min(4, max(2, n_proto)),
             "n_changepoints_hint": len(case.changepoints),
             "use_matched_filter": True,
+            "use_wpcg_refine": False,
         }
     if key == "sinkhorn":
         return {"window": window, "threshold_quantile": 0.99, "min_distance": window}
@@ -742,7 +756,8 @@ def run_case(
     for key in baselines:
         kwargs = baseline_kwargs(key, case, window=window, n_bkps=n_bkps)
         if calibration is not None:
-            th = calibration.get(case.experiment, key)
+            cfg = calibration_config_key(case, window)
+            th = calibration.get(cfg, key)
             if th is not None and np.isfinite(th):
                 kwargs["threshold"] = th
                 if key.startswith("proposed"):
@@ -846,19 +861,22 @@ def run_synthetic_suite(
     for experiment in experiments:
         methods = baselines or BASELINE_SETS[experiment]
         cases = make_cases(experiment, grid=grid, seeds=seeds)
-        calibration: CalibratedThresholds | None = None
-        if calibrate and cases:
-            null_series = []
-            for case in cases[: min(3, len(cases))]:
-                null_series.extend(generate_null_series(case, n_null=max(3, null_seeds // 3)))
-            kwargs_map = {
-                m: baseline_kwargs(m, cases[0], window or max(20, min(80, len(cases[0].x) // 8)), len(cases[0].changepoints))
-                for m in methods
-            }
-            calibration = calibrate_experiment_methods(
-                experiment, methods, null_series, kwargs_map, false_alarm_quantile=false_alarm_quantile
-            )
+        calibration_cache: dict[tuple[Any, ...], CalibratedThresholds] = {}
         for case in cases:
+            calibration: CalibratedThresholds | None = None
+            if calibrate:
+                w = resolve_window(case, window or max(20, min(80, len(case.x) // 8)))
+                cfg = calibration_config_key(case, w)
+                if cfg not in calibration_cache:
+                    null_series = generate_null_series(case, n_null=null_seeds)
+                    kwargs_map = {
+                        m: baseline_kwargs(m, case, window=w, n_bkps=len(case.changepoints))
+                        for m in methods
+                    }
+                    calibration_cache[cfg] = calibrate_for_case(
+                        case, methods, null_series, kwargs_map, false_alarm_quantile=false_alarm_quantile
+                    )
+                calibration = calibration_cache[cfg]
             all_results.extend(
                 run_case(case, baselines=methods, window=window, calibration=calibration)
             )

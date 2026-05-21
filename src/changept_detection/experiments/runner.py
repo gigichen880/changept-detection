@@ -83,7 +83,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Use in-sample quantile thresholds (legacy; not plan-faithful).",
     )
-    parser.add_argument("--null-seeds", type=int, default=15, help="Null sequences per experiment for calibration.")
+    parser.add_argument("--null-seeds", type=int, default=8, help="Null sequences per case config for calibration.")
     parser.add_argument(
         "--false-alarm-quantile",
         type=float,

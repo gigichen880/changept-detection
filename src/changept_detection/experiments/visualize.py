@@ -105,24 +105,30 @@ def print_results_audit(rows: list[dict[str, Any]], summary: list[dict[str, Any]
 
     # S6: lower duplicate rate is better
     prop_dup = proposed_metric("S6", "duplicate_rate")
-    local_dup = aggregate_by_method(rows, "S6", "duplicate_rate").get("local_w2t", float("nan"))
+    local_dup = aggregate_by_method(rows, "S6", "duplicate_rate").get(
+        "coordinate_w2_matched_filter", float("nan")
+    )
+    proxy_dup = aggregate_by_method(rows, "S6", "duplicate_rate").get(
+        "proposed_local_persistence_proxy", float("nan")
+    )
     print(
-        f"S6 duplicate rate — local_w2t: {local_dup:.3f}, proposed: {prop_dup:.3f} "
-        "(expect proposed <= local-only when global filter helps)"
+        f"S6 duplicate rate — matched_filter: {local_dup:.3f}, "
+        f"persistence_proxy: {proxy_dup:.3f}, proposed_full: {prop_dup:.3f}"
     )
 
     # S7: boundary F1 vs regime ARI (different tasks until full prototype labels exist)
     prop_f1 = proposed_metric("S7", "f1")
     b, bv = best_other("S7", "f1")
     print(f"S7 boundary F1 — proposed: {prop_f1:.3f}, best baseline ({b}): {bv:.3f}")
+    prop_ari = proposed_metric("S7", "ari")
     ari_scores = aggregate_by_method(rows, "S7", "ari")
     if ari_scores:
         best_ari = max(ari_scores, key=ari_scores.get)
-        print(f"S7 regime ARI — best: {best_ari}={ari_scores[best_ari]:.3f} (proposed has no ARI until prototype layer)")
+        print(f"S7 regime ARI — proposed_full: {prop_ari:.3f}, best: {best_ari}={ari_scores[best_ari]:.3f}")
 
     proposed_rows = [r for r in summary if r.get("method") == PROPOSED_METHOD and r.get("available_runs", 0)]
     if not proposed_rows:
-        print("WARNING: no available runs for proposed_local_global — check thresholds/window.")
+        print(f"WARNING: no available runs for {PROPOSED_METHOD} — check thresholds/window.")
 
 
 def _style_bar(ax, methods: list[str], values: list[float], metric_label: str, title: str) -> None:

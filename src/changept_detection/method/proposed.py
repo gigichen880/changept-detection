@@ -92,8 +92,10 @@ def global_refinement_subset(
     metric: Callable[..., float],
 ) -> list[int]:
     """
-    Select a subset of candidates on [horizon_end-H, horizon_end] maximizing
-    segment separation minus change penalties (greedy add/drop).
+    Rolling-window global proxy (not the full Eq. 13 segment objective).
+
+    Compares empirical windows around candidate boundaries rather than full
+    induced segment distributions mu_i(tau), mu_{i+1}(tau). Fast heuristic for sweeps.
     """
     lo = max(window, horizon_end - horizon)
     hi = horizon_end
@@ -292,16 +294,28 @@ def regime_labels_from_prototypes(
     n_prototypes: int,
     metric: str = "sliced_wasserstein",
     temperature: float = 0.5,
+    n_em_rounds: int = 5,
 ) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], np.ndarray]:
     """Window-center regime assignments and posterior entropy (S7)."""
     data = as_2d(x)
     metric_fn = _metric_fn(metric)
     prototypes = _init_prototypes(x, window, n_prototypes)
     centers = np.arange(window, len(data) + 1)
+    windows = [data[end - window : end] for end in centers]
+
+    for _ in range(n_em_rounds):
+        labels = np.zeros(len(centers), dtype=int)
+        for i, cur in enumerate(windows):
+            pi = prototype_posterior(cur, prototypes, metric_fn, temperature)
+            labels[i] = int(np.argmax(pi))
+        for k in range(n_prototypes):
+            assigned = [windows[i] for i in range(len(windows)) if labels[i] == k]
+            if assigned:
+                prototypes[k] = np.mean(np.stack(assigned, axis=0), axis=0)
+
     labels = np.zeros(len(centers), dtype=int)
     entropy = np.zeros(len(centers))
-    for i, end in enumerate(centers):
-        cur = data[end - window : end]
+    for i, cur in enumerate(windows):
         pi = prototype_posterior(cur, prototypes, metric_fn, temperature)
         labels[i] = int(np.argmax(pi))
         entropy[i] = float(-np.sum(pi * np.log(pi + 1e-12)))
