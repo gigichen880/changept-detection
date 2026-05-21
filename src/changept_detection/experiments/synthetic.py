@@ -15,7 +15,7 @@ from typing import Any
 
 import numpy as np
 
-from changept_detection.baselines import (
+from changept_detection.baselines.core import (
     BASELINE_RESOURCES,
     cluster_rolling_windows,
     clustering_metrics,
@@ -23,6 +23,8 @@ from changept_detection.baselines import (
     duplicate_rate,
     run_baseline,
 )
+from changept_detection.experiments.calibration import CalibratedThresholds, calibrate_experiment_methods
+from changept_detection.method.proposed import regime_labels_from_prototypes
 
 
 @dataclass
@@ -49,6 +51,9 @@ class ExperimentResult:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+# Primary proposed method for tables/plots; ablations included where noted in plan.
+PROPOSED_PRIMARY = "proposed_full"
+
 BASELINE_SETS: dict[str, list[str]] = {
     "S0": [
         "pelt_l2",
@@ -57,8 +62,10 @@ BASELINE_SETS: dict[str, list[str]] = {
         "cusum_mean",
         "cusum_vol",
         "bocpd_gaussian",
-        "local_w2t",
-        "proposed_local_global",
+        "coordinate_w2_window_scan",
+        "coordinate_w2_matched_filter",
+        PROPOSED_PRIMARY,
+        "proposed_local_persistence_proxy",
     ],
     "S1": [
         "ewma_vol",
@@ -68,17 +75,17 @@ BASELINE_SETS: dict[str, list[str]] = {
         "mmd",
         "energy",
         "pelt_rbf",
-        "local_w2t",
-        "proposed_local_global",
+        "coordinate_w2_matched_filter",
+        PROPOSED_PRIMARY,
     ],
     "S2": [
         "ks",
         "mmd",
         "energy",
         "pelt_rbf",
-        "local_w2t",
+        "coordinate_w2_matched_filter",
         "bocpd_gaussian",
-        "proposed_local_global",
+        PROPOSED_PRIMARY,
     ],
     "S3": [
         "coordinate_w2t",
@@ -90,7 +97,8 @@ BASELINE_SETS: dict[str, list[str]] = {
         "bures",
         "sliced_wasserstein",
         "sinkhorn",
-        "proposed_local_global",
+        PROPOSED_PRIMARY,
+        "proposed_local_global_no_proto",
     ],
     "S4": [
         "pelt_rbf",
@@ -100,28 +108,32 @@ BASELINE_SETS: dict[str, list[str]] = {
         "covariance_frobenius",
         "pca_subspace",
         "bures",
-        "proposed_local_global",
+        PROPOSED_PRIMARY,
     ],
     "S5": [
-        "local_w2t",
+        "coordinate_w2_matched_filter",
         "mmd",
         "pelt_rbf",
         "bocpd_gaussian",
         "cusum_mean",
         "ewma_vol",
-        "proposed_local_global",
+        PROPOSED_PRIMARY,
+        "proposed_local_only",
+        "proposed_local_persistence_proxy",
     ],
     "S6": [
-        "local_w2t",
+        "coordinate_w2_matched_filter",
         "mmd",
         "window_rbf",
-        "proposed_local_global",
+        PROPOSED_PRIMARY,
+        "proposed_local_persistence_proxy",
     ],
     "S7": [
         "gaussian_hmm",
-        "markov_switching",
-        "local_w2t",
-        "proposed_local_global",
+        "coordinate_w2_matched_filter",
+        PROPOSED_PRIMARY,
+        "proposed_local_proto_no_global",
+        "rolling_feature_kmeans",
     ],
 }
 
@@ -268,12 +280,22 @@ def generate_s2(
     delta: float = 0.1,
     mode_separation: float = 3.0,
     serial_dependence: str = "IID",
+    centered: bool = False,
 ) -> SyntheticCase:
     rng = np.random.default_rng(seed)
     sigma = 1.0
     a = mode_separation * sigma
-    x1 = sample_mixture(rng, n_per_segment, 0.5, a, sigma)[:, None]
-    x2 = sample_mixture(rng, n_per_segment, 0.5 + delta, a, sigma)[:, None]
+    if centered:
+        # Symmetric modes at +/-a with matched variance; only weights change (mean stays ~0).
+        def draw(n: int, w_left: float) -> np.ndarray:
+            z = rng.random(n) < w_left
+            return np.where(z, -a, a) + rng.normal(0.0, sigma, size=n)
+
+        x1 = draw(n_per_segment, 0.5)[:, None]
+        x2 = draw(n_per_segment, 0.5 + delta)[:, None]
+    else:
+        x1 = sample_mixture(rng, n_per_segment, 0.5, a, sigma)[:, None]
+        x2 = sample_mixture(rng, n_per_segment, 0.5 + delta, a, sigma)[:, None]
     x = np.vstack([x1, x2])
     if serial_dependence == "AR(1)":
         x = apply_ar1(x, 0.4, rng)
@@ -292,6 +314,7 @@ def generate_s2(
             "delta": delta,
             "mode_separation": mode_separation,
             "serial_dependence": serial_dependence,
+            "centered": centered,
         },
     )
 
@@ -378,6 +401,7 @@ def generate_s5(
         x = np.vstack([calm1, persistent_segment])
         cps = [n_before]
         name = "persistent_regime_shift"
+        shock_length = 0  # not used in persistent branch
     else:
         calm2 = rng.normal(0.0, 1.0, size=(n_after, 1))
         x = np.vstack([calm1, shock, calm2])
@@ -405,6 +429,8 @@ def generate_s6(
     n_per_segment: int = 250,
     shift_family: str = "tail",
     signal_strength: str = "medium",
+    window_length: int | None = None,
+    noise_level: str = "low",
 ) -> SyntheticCase:
     if shift_family == "correlation":
         strength = {"weak": 0.05, "medium": 0.2, "strong": 0.4}[signal_strength]
@@ -420,7 +446,17 @@ def generate_s6(
         case = generate_s1(seed=seed, n_per_segment=n_per_segment, nu=nu)
     case.experiment = "S6"
     case.name = f"duplicate_peak_{shift_family}"
-    case.params.update({"shift_family": shift_family, "signal_strength": signal_strength})
+    noise_scale = {"low": 0.05, "medium": 0.15, "high": 0.35}[noise_level]
+    rng = np.random.default_rng(seed + 99)
+    case.x = case.x + rng.normal(0.0, noise_scale, size=case.x.shape)
+    case.params.update(
+        {
+            "shift_family": shift_family,
+            "signal_strength": signal_strength,
+            "window_length": window_length,
+            "noise_level": noise_level,
+        }
+    )
     return case
 
 
@@ -486,7 +522,10 @@ def quick_grid(experiment: str) -> list[dict[str, Any]]:
     if experiment == "S1":
         return [{"nu": nu, "n_per_segment": 120} for nu in [6, 20]]
     if experiment == "S2":
-        return [{"delta": delta, "mode_separation": 3.0, "n_per_segment": 120} for delta in [0.05, 0.2]]
+        return [
+            {"delta": delta, "mode_separation": 3.0, "n_per_segment": 120, "centered": True}
+            for delta in [0.05, 0.2]
+        ]
     if experiment == "S3":
         return [{"delta_rho": dr, "rho1": 0.2, "d": 10, "n_per_segment": 120} for dr in [0.1, 0.3]]
     if experiment == "S4":
@@ -497,7 +536,21 @@ def quick_grid(experiment: str) -> list[dict[str, Any]]:
             {"shock_length": 50, "magnitude": "medium", "persistent": True},
         ]
     if experiment == "S6":
-        return [{"shift_family": fam, "signal_strength": "medium", "n_per_segment": 120} for fam in ["tail", "correlation"]]
+        return [
+            {
+                "shift_family": fam,
+                "signal_strength": strength,
+                "n_per_segment": 120,
+                "window_length": w,
+                "noise_level": noise,
+            }
+            for fam, strength, w, noise in product(
+                ["tail", "correlation"],
+                ["medium", "strong"],
+                [50, 100],
+                ["low", "high"],
+            )
+        ]
     if experiment == "S7":
         return [{"regime_duration": 80, "d": 5, "similarity": "medium"}]
     raise KeyError(f"Unknown experiment: {experiment}")
@@ -509,7 +562,12 @@ def full_grid(experiment: str) -> list[dict[str, Any]]:
     if experiment == "S0":
         return [
             {"mean_shift": s, "volatility_ratio": v, "n_per_segment": n, "d": d}
-            for s, v, n, d in product([0.05, 0.1, 0.2, 0.5, 1.0], [1.05, 1.25, 1.5], [100, 250], [1, 5, 20])
+            for s, v, n, d in product(
+                [0.05, 0.1, 0.2, 0.5, 1.0],
+                [1.05, 1.1, 1.25, 1.5, 2.0],
+                [50, 100, 250, 500],
+                [1, 5, 20, 100],
+            )
         ]
     if experiment == "S1":
         return [
@@ -518,8 +576,20 @@ def full_grid(experiment: str) -> list[dict[str, Any]]:
         ]
     if experiment == "S2":
         return [
-            {"delta": delta, "mode_separation": sep, "n_per_segment": n, "serial_dependence": dep}
-            for delta, sep, n, dep in product([0.02, 0.05, 0.1, 0.2, 0.3], [1, 2, 3, 5], [100, 250], ["IID", "AR(1)"])
+            {
+                "delta": delta,
+                "mode_separation": sep,
+                "n_per_segment": n,
+                "serial_dependence": dep,
+                "centered": centered,
+            }
+            for delta, sep, n, dep, centered in product(
+                [0.02, 0.05, 0.1, 0.2, 0.3],
+                [1, 2, 3, 5],
+                [100, 250],
+                ["IID", "AR(1)"],
+                [False, True],
+            )
         ]
     if experiment == "S3":
         return [
@@ -539,8 +609,20 @@ def full_grid(experiment: str) -> list[dict[str, Any]]:
         ]
     if experiment == "S6":
         return [
-            {"shift_family": fam, "signal_strength": strength, "n_per_segment": n}
-            for fam, strength, n in product(["tail", "mixture", "correlation", "factor"], ["weak", "medium", "strong"], [100, 250])
+            {
+                "shift_family": fam,
+                "signal_strength": strength,
+                "n_per_segment": n,
+                "window_length": w,
+                "noise_level": noise,
+            }
+            for fam, strength, n, w, noise in product(
+                ["tail", "mixture", "correlation", "factor"],
+                ["weak", "medium", "strong"],
+                [100, 250],
+                [20, 50, 100, 250],
+                ["low", "medium", "high"],
+            )
         ]
     if experiment == "S7":
         return [
@@ -550,28 +632,84 @@ def full_grid(experiment: str) -> list[dict[str, Any]]:
     raise KeyError(f"Unknown experiment: {experiment}")
 
 
+def resolve_window(case: SyntheticCase, default_window: int) -> int:
+    wl = case.params.get("window_length")
+    if wl is not None and not (isinstance(wl, float) and np.isnan(wl)):
+        return int(wl)
+    return default_window
+
+
+def generate_null_series(case: SyntheticCase, n_null: int, base_seed: int = 10_000) -> list[np.ndarray]:
+    """Stationary (no-change) series matched to the case DGP parameters."""
+    params = {k: v for k, v in case.params.items() if k != "seed"}
+    exp = case.experiment
+    series: list[np.ndarray] = []
+    length = len(case.x)
+
+    for i in range(n_null):
+        seed = base_seed + i
+        rng = np.random.default_rng(seed)
+        if exp == "S0":
+            d = int(params.get("d", 1))
+            x = rng.normal(0.0, 1.0, size=(length, d))
+        elif exp == "S1":
+            nu = float(params.get("nu", 6))
+            scale = np.sqrt((nu - 2.0) / nu)
+            x = scale * rng.standard_t(df=nu, size=(length, 1))
+        elif exp == "S2":
+            a = float(params.get("mode_separation", 3.0))
+            centered = bool(params.get("centered", False))
+            if centered:
+                z = rng.random(length) < 0.5
+                x = np.where(z, -a, a)[:, None] + rng.normal(0.0, 1.0, size=(length, 1))
+            else:
+                x = sample_mixture(rng, length, 0.5, a, 1.0)[:, None]
+        elif exp == "S3":
+            d = int(params.get("d", 5))
+            rho = float(params.get("rho1", 0.2))
+            x = rng.multivariate_normal(np.zeros(d), equicorrelation(d, rho), size=length)
+        elif exp == "S4":
+            d = int(params.get("d", 10))
+            x = rng.normal(0.0, 1.0, size=(length, d))
+        elif exp == "S5":
+            x = rng.normal(0.0, 1.0, size=(length, 1))
+        elif exp == "S6":
+            null_case = generate_s1(seed=seed, n_per_segment=length, nu=20)
+            x = null_case.x
+        elif exp == "S7":
+            d = int(params.get("d", 5))
+            x = rng.normal(0.0, 1.0, size=(length, d))
+        else:
+            x = rng.normal(0.0, 1.0, size=case.x.shape)
+        series.append(np.asarray(x, dtype=float))
+    return series
+
+
 def baseline_kwargs(key: str, case: SyntheticCase, window: int, n_bkps: int | None) -> dict[str, Any]:
     """Route only compatible options to each detector family."""
 
-    tolerance = max(5, window // 2)
+    window = resolve_window(case, window)
     if key in {"pelt_l2", "pelt_rbf", "pelt_normal", "binseg", "bottomup"}:
         return {"penalty": 8.0, "n_bkps": n_bkps, "min_size": max(5, window // 2)}
     if key in {"cusum_mean", "cusum_vol"}:
-        return {"threshold_quantile": 0.99, "min_distance": window}
+        return {"min_distance": window, "burn_in": window}
     if key == "ewma_vol":
-        return {"threshold_quantile": 0.99, "min_distance": window}
+        return {"min_distance": window}
     if key == "bocpd_gaussian":
-        return {"hazard": 1.0 / max(window * 4, 1), "threshold": 0.2, "min_distance": window}
+        return {"hazard": 1.0 / max(window * 4, 1), "min_distance": window, "burn_in": window}
     if key == "gaussian_hmm":
         return {"n_states": min(4, max(2, len(case.changepoints) + 1)), "min_distance": window}
-    if key == "proposed_local_global":
+    if key.startswith("proposed"):
         metric = "bures" if case.experiment in {"S3", "S4"} else "sliced_wasserstein"
         return {
             "window": window,
-            "threshold_quantile": 0.98,
             "min_persistence": 2,
             "min_distance": window,
             "metric": metric,
+            "horizon": max(2 * window, 80),
+            "n_prototypes": min(4, max(2, len(case.regime_labels or []) or 3)),
+            "n_changepoints_hint": len(case.changepoints),
+            "use_matched_filter": True,
         }
     if key == "sinkhorn":
         return {"window": window, "threshold_quantile": 0.99, "min_distance": window}
@@ -593,15 +731,22 @@ def run_case(
     baselines: list[str] | None = None,
     window: int | None = None,
     n_bkps: int | None = None,
+    calibration: CalibratedThresholds | None = None,
 ) -> list[ExperimentResult]:
     if baselines is None:
         baselines = BASELINE_SETS[case.experiment]
-    window = window or max(20, min(80, len(case.x) // 8))
+    window = resolve_window(case, window or max(20, min(80, len(case.x) // 8)))
     n_bkps = len(case.changepoints) if n_bkps is None else n_bkps
     tolerance = max(5, window // 2)
     results = []
     for key in baselines:
         kwargs = baseline_kwargs(key, case, window=window, n_bkps=n_bkps)
+        if calibration is not None:
+            th = calibration.get(case.experiment, key)
+            if th is not None and np.isfinite(th):
+                kwargs["threshold"] = th
+                if key.startswith("proposed"):
+                    kwargs["alert_threshold"] = th
         result = run_baseline(key, case.x, **kwargs)
         metrics = detection_metrics(case.changepoints, result.changepoints, tolerance=tolerance)
         if case.experiment == "S6":
@@ -626,7 +771,8 @@ def run_case(
             )
         )
     if case.experiment == "S7" and case.regime_labels is not None:
-        centers, labels = cluster_rolling_windows(case.x, window=window, n_clusters=len(np.unique(case.regime_labels)))
+        k_true = len(np.unique(case.regime_labels))
+        centers, labels = cluster_rolling_windows(case.x, window=window, n_clusters=k_true)
         true_labels = case.regime_labels[centers - 1]
         metrics = clustering_metrics(true_labels, labels)
         results.append(
@@ -648,6 +794,22 @@ def run_case(
                 },
             )
         )
+        p_centers, p_labels, _, p_entropy = regime_labels_from_prototypes(
+            case.x, window=window, n_prototypes=k_true
+        )
+        p_true = case.regime_labels[p_centers - 1]
+        p_metrics = clustering_metrics(p_true, p_labels)
+        p_metrics["mean_posterior_entropy"] = float(np.mean(p_entropy))
+        for r in results:
+            if r.method in {PROPOSED_PRIMARY, "proposed_local_proto_no_global"}:
+                r.metrics.update(
+                    {
+                        "ari": p_metrics["ari"],
+                        "nmi": p_metrics["nmi"],
+                        "label_accuracy": p_metrics["label_accuracy"],
+                        "mean_posterior_entropy": p_metrics["mean_posterior_entropy"],
+                    }
+                )
     return results
 
 
@@ -675,12 +837,31 @@ def run_synthetic_suite(
     seeds: int | list[int] = 1,
     baselines: list[str] | None = None,
     window: int | None = None,
+    calibrate: bool = True,
+    null_seeds: int = 15,
+    false_alarm_quantile: float = 0.95,
 ) -> list[ExperimentResult]:
     experiments = experiments or list(BASELINE_SETS)
     all_results: list[ExperimentResult] = []
     for experiment in experiments:
-        for case in make_cases(experiment, grid=grid, seeds=seeds):
-            all_results.extend(run_case(case, baselines=baselines, window=window))
+        methods = baselines or BASELINE_SETS[experiment]
+        cases = make_cases(experiment, grid=grid, seeds=seeds)
+        calibration: CalibratedThresholds | None = None
+        if calibrate and cases:
+            null_series = []
+            for case in cases[: min(3, len(cases))]:
+                null_series.extend(generate_null_series(case, n_null=max(3, null_seeds // 3)))
+            kwargs_map = {
+                m: baseline_kwargs(m, cases[0], window or max(20, min(80, len(cases[0].x) // 8)), len(cases[0].changepoints))
+                for m in methods
+            }
+            calibration = calibrate_experiment_methods(
+                experiment, methods, null_series, kwargs_map, false_alarm_quantile=false_alarm_quantile
+            )
+        for case in cases:
+            all_results.extend(
+                run_case(case, baselines=methods, window=window, calibration=calibration)
+            )
     return all_results
 
 

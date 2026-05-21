@@ -2,7 +2,7 @@
 
 This file records the source used for each implemented or registered baseline in
 the synthetic experiment runner. The same metadata is embedded in every result
-row through `changept_detection.baselines.BASELINE_RESOURCES`.
+row through `changept_detection.baselines.core.BASELINE_RESOURCES`.
 
 ## Optimal Transport Baselines
 

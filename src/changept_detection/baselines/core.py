@@ -60,13 +60,29 @@ class DetectionResult:
 
 
 BASELINE_RESOURCES: dict[str, BaselineResource] = {
-    "local_w2t": BaselineResource(
-        "local_w2t",
-        "Local W2T + matched filter",
+    "coordinate_w2_window_scan": BaselineResource(
+        "coordinate_w2_window_scan",
+        "Coordinate-wise W2 window scan",
         "OT",
         "Cheng et al., Optimal Transport Based Change Point Detection and Time Series Segment Clustering, arXiv:1911.01325",
         "https://arxiv.org/abs/1911.01325",
-        "Reimplemented as adjacent-window Wasserstein scores with optional matched-filter smoothing.",
+        "Adjacent-window coordinate-wise empirical W2; not the full Brownian-bridge W2T statistic.",
+    ),
+    "coordinate_w2_matched_filter": BaselineResource(
+        "coordinate_w2_matched_filter",
+        "Coordinate-wise W2 + matched filter",
+        "OT",
+        "Cheng et al., arXiv:1911.01325",
+        "https://arxiv.org/abs/1911.01325",
+        "W2 window scan with triangular matched-filter post-processing (Cheng-style proxy).",
+    ),
+    "local_w2t": BaselineResource(
+        "local_w2t",
+        "Alias for coordinate_w2_window_scan",
+        "OT",
+        "Cheng et al., arXiv:1911.01325",
+        "https://arxiv.org/abs/1911.01325",
+        "Deprecated alias; use coordinate_w2_window_scan or coordinate_w2_matched_filter.",
     ),
     "coordinate_w2t": BaselineResource(
         "coordinate_w2t",
@@ -270,15 +286,66 @@ BASELINE_RESOURCES: dict[str, BaselineResource] = {
         "https://www.jstor.org/stable/1912559",
         "Registered for experiment reporting; use statsmodels.tsa.regime_switching for full model fits.",
     ),
+    "proposed_local_only": BaselineResource(
+        "proposed_local_only",
+        "Proposed: local alert only",
+        "Proposed method",
+        "docs/experiment_plan.md §3.1",
+        "docs/experiment_plan.md",
+        "Ablation without prototypes or global refinement.",
+    ),
+    "proposed_local_persistence_proxy": BaselineResource(
+        "proposed_local_persistence_proxy",
+        "Proposed: local + persistence proxy",
+        "Proposed method",
+        "docs/experiment_plan.md §3.1",
+        "docs/experiment_plan.md",
+        "Former proposed_local_global stub (peak refine + persistence).",
+    ),
+    "proposed_local_global_no_proto": BaselineResource(
+        "proposed_local_global_no_proto",
+        "Proposed: local + global, no prototypes",
+        "Proposed method",
+        "docs/experiment_plan.md §3.1",
+        "docs/experiment_plan.md",
+        "Horizon subset refinement without prototype posterior.",
+    ),
+    "proposed_local_proto_no_global": BaselineResource(
+        "proposed_local_proto_no_global",
+        "Proposed: local + prototypes, no global",
+        "Proposed method",
+        "docs/experiment_plan.md §3.1",
+        "docs/experiment_plan.md",
+        "Prototype posterior shift without global refinement.",
+    ),
+    "proposed_full": BaselineResource(
+        "proposed_full",
+        "Proposed: local + prototypes + global refinement",
+        "Proposed method",
+        "docs/experiment_plan.md §3.1; WPCG refinement optional via wpcg.py",
+        "docs/experiment_plan.md",
+        "Full planned stack (compact implementation for sweeps).",
+    ),
     "proposed_local_global": BaselineResource(
         "proposed_local_global",
-        "Proposed local-global Wasserstein filter",
+        "Alias for proposed_local_persistence_proxy",
         "Proposed method",
-        "docs/experiment_plan.md and current WPCG prototype",
         "docs/experiment_plan.md",
-        "Window Wasserstein candidates with persistence and duplicate suppression.",
+        "docs/experiment_plan.md",
+        "Deprecated alias.",
     ),
 }
+
+PROPOSED_METHOD_KEYS = frozenset(
+    {
+        "proposed_local_only",
+        "proposed_local_persistence_proxy",
+        "proposed_local_global_no_proto",
+        "proposed_local_proto_no_global",
+        "proposed_full",
+        "proposed_local_global",
+    }
+)
 
 
 def resource_table(keys: Iterable[str] | None = None) -> list[dict[str, str]]:
@@ -471,7 +538,13 @@ def sinkhorn_divergence(left: np.ndarray, right: np.ndarray, reg: float = 0.1) -
     return max(sxy - 0.5 * sxx - 0.5 * syy, 0.0)
 
 
+def coordinate_w2_matched_scan(left: np.ndarray, right: np.ndarray, window: int = 50, **_) -> float:
+    del window, _
+    return coordinate_w2(left, right)
+
+
 WINDOW_METRICS: dict[str, Callable[..., float]] = {
+    "coordinate_w2_window_scan": coordinate_w2,
     "local_w2t": coordinate_w2,
     "coordinate_w2t": coordinate_w2,
     "sliced_wasserstein": sliced_wasserstein,
@@ -662,11 +735,15 @@ def run_cusum(
     threshold: float | None = None,
     threshold_quantile: float = 0.995,
     min_distance: int = 25,
+    burn_in: int = 50,
 ) -> DetectionResult:
     y = aggregate_series(x, "mean")
     if key == "cusum_vol":
         y = y**2
-    y = (y - np.mean(y)) / (np.std(y) + 1e-12)
+    burn_in = max(10, min(burn_in, len(y) // 4))
+    mu = float(np.mean(y[:burn_in]))
+    sigma = float(np.std(y[:burn_in]) + 1e-12)
+    y = (y - mu) / sigma
     pos = np.zeros_like(y)
     neg = np.zeros_like(y)
     score = np.zeros_like(y)
@@ -713,16 +790,17 @@ def run_bocpd_gaussian(
     threshold: float = 0.5,
     max_run_length: int = 300,
     min_distance: int = 25,
+    burn_in: int = 50,
 ) -> DetectionResult:
     """
     Lightweight Adams-MacKay BOCPD for a univariate Gaussian with known variance.
 
-    This intentionally keeps the implementation small for experiment sweeps. For
-    publication-grade BOCPD, compare against the cited packages too.
+    Variance is estimated on a burn-in prefix only (no full-series leakage).
     """
 
     y = aggregate_series(x, "mean")
-    sigma2 = float(np.var(y) + 1e-6)
+    burn_in = max(10, min(burn_in, len(y) // 4))
+    sigma2 = float(np.var(y[:burn_in]) + 1e-6)
     run_probs = np.array([1.0])
     sums = np.array([0.0])
     counts = np.array([0.0])
@@ -771,54 +849,29 @@ def run_gaussian_hmm(
     )
 
 
-def run_proposed_local_global(
-    x: np.ndarray,
-    window: int = 50,
-    threshold: float | None = None,
-    threshold_quantile: float = 0.98,
-    min_persistence: int = 2,
-    refinement_radius: int | None = None,
-    min_distance: int | None = None,
-    metric: str = "sliced_wasserstein",
-) -> DetectionResult:
-    """
-    Compact version of the planned local-global Wasserstein method.
+def run_coordinate_w2_matched_filter(x: np.ndarray, window: int = 50, **kwargs) -> DetectionResult:
+    from changept_detection.method.proposed import matched_filter_1d
 
-    It creates liberal local candidates, refines each candidate within a local
-    radius, then applies persistence/duplicate suppression. This is not a final
-    paper implementation of the prototype posterior layer, but it gives the
-    synthetic suite a proposed-method entry that exercises local-global behavior.
-    """
-
-    score_metric = WINDOW_METRICS[metric]
-    scores = adjacent_window_scores(x, window=window, metric=score_metric, smooth=max(1, window // 5))
-    chosen_threshold = threshold if threshold is not None else threshold_from_quantile(scores, threshold_quantile)
-    radius = refinement_radius or max(window // 2, 1)
-    local_candidates = select_peaks(scores, chosen_threshold, min_distance=max(1, window // 4))
-    refined: list[int] = []
-    for candidate in local_candidates:
-        lo = max(window, candidate - radius)
-        hi = min(len(scores) - window, candidate + radius)
-        if lo > hi:
-            continue
-        best = lo + int(np.nanargmax(scores[lo : hi + 1]))
-        neighborhood = scores[max(0, best - min_persistence) : best + min_persistence + 1]
-        if np.sum(np.isfinite(neighborhood) & (neighborhood >= chosen_threshold)) >= min_persistence:
-            refined.append(best)
-    selected = []
-    for cp in sorted(set(refined), key=lambda idx: scores[idx], reverse=True):
-        if all(abs(cp - prev) >= (min_distance or window) for prev in selected):
-            selected.append(cp)
-    return DetectionResult(
-        "proposed_local_global",
-        sorted(selected),
+    metric = WINDOW_METRICS["coordinate_w2_window_scan"]
+    skip = {"threshold", "threshold_quantile", "min_distance", "max_changes", "window", "smooth", "burn_in"}
+    extra = {k: v for k, v in kwargs.items() if k not in skip}
+    scores = adjacent_window_scores(x, window=window, metric=metric, smooth=1, **extra)
+    scores = matched_filter_1d(scores, width=window)
+    threshold = kwargs.get("threshold")
+    if threshold is None:
+        threshold = threshold_from_quantile(scores, kwargs.get("threshold_quantile", 0.995))
+    changepoints = select_peaks(
         scores,
-        chosen_threshold,
-        {
-            "metric": metric,
-            "min_persistence": min_persistence,
-            "resource": resource_table(["proposed_local_global"])[0],
-        },
+        threshold=threshold,
+        min_distance=kwargs.get("min_distance") or window,
+        max_changes=kwargs.get("max_changes"),
+    )
+    return DetectionResult(
+        "coordinate_w2_matched_filter",
+        changepoints,
+        scores,
+        threshold,
+        {"resource": resource_table(["coordinate_w2_matched_filter"])[0]},
     )
 
 
@@ -827,8 +880,18 @@ def run_baseline(key: str, x: np.ndarray, **kwargs) -> DetectionResult:
 
     if key == "sinkhorn":
         return run_sinkhorn_baseline(x, **kwargs)
+    if key == "coordinate_w2_matched_filter":
+        return run_coordinate_w2_matched_filter(x, **kwargs)
+    if key in PROPOSED_METHOD_KEYS:
+        from changept_detection.method.proposed import PROPOSED_DISPATCH
+
+        dispatch = PROPOSED_DISPATCH.get(key)
+        if dispatch is None:
+            raise KeyError(key)
+        return dispatch(x, **kwargs)
     if key in WINDOW_METRICS:
-        return run_window_baseline(key, x, **kwargs)
+        resolved = "coordinate_w2_window_scan" if key == "local_w2t" else key
+        return run_window_baseline(resolved, x, **kwargs)
     if key == "watch_proxy":
         return run_watch_proxy(x, **kwargs)
     if key in {"pelt_l2", "pelt_rbf", "pelt_normal", "binseg", "bottomup"}:
@@ -843,8 +906,6 @@ def run_baseline(key: str, x: np.ndarray, **kwargs) -> DetectionResult:
         return run_gaussian_hmm(x, **kwargs)
     if key == "markov_switching":
         return unavailable_result(key, "Use statsmodels.tsa.regime_switching for full Hamilton-style fits.")
-    if key == "proposed_local_global":
-        return run_proposed_local_global(x, **kwargs)
     raise KeyError(f"Unknown baseline key: {key}")
 
 

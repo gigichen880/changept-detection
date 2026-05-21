@@ -1,105 +1,56 @@
 # Change-Point Detection Experiments
 
 Prototype and experiment scaffold for online local–global Wasserstein regime
-filtering in financial changepoint detection. The design follows
-`docs/experiment_plan.md`.
-
-## Why there is only one CLI entry point
-
-Earlier versions had both `scripts/run_synthetic_experiments.py` (a thin wrapper
-that edited `sys.path`) and `src/changept_detection/cli/run_synthetic_experiments.py`
-(the real logic). That duplicated the same command in two places.
-
-Now everything runs through the package:
-
-```bash
-PYTHONPATH=src python -m changept_detection [options]
-```
-
-Implementation lives in `src/changept_detection/runner.py`; plots in
-`src/changept_detection/visualize.py`.
+filtering in financial changepoint detection. Design: `docs/experiment_plan.md`.
 
 ## Repository layout
 
 ```text
 .
-├── docs/
-│   ├── experiment_plan.md
-│   └── baseline_resources.md
+├── docs/                          # experiment plan, baseline citations
+├── examples/
+│   └── wpcg_demo.py               # standalone WPCG / Eq. (13) demo
 ├── requirements.txt
 ├── requirements-optional.txt
-├── src/changept_detection/
-│   ├── __main__.py          # python -m changept_detection
-│   ├── baselines.py
-│   ├── synthetic.py
-│   ├── runner.py
-│   └── visualize.py
-└── wpcg_cpd.py              # standalone 1D-Wasserstein / WPCG prototype
+└── src/changept_detection/
+    ├── __main__.py                # python -m changept_detection
+    ├── method/                    # our method
+    │   ├── wpcg.py                # offline WPCG coordinate sweep
+    │   └── proposed.py            # proposed_full + ablations
+    ├── baselines/
+    │   └── core.py                # baseline registry + detectors
+    └── experiments/
+        ├── synthetic.py           # S0–S7 generators and sweeps
+        ├── calibration.py         # null-sequence threshold calibration
+        ├── runner.py              # CLI
+        └── visualize.py           # result plots
 ```
 
-## Run experiments and plots
+## Run experiments
 
 ```bash
 pip install -r requirements.txt
-# optional: pip install -r requirements-optional.txt
+pip install -r requirements-optional.txt   # recommended
 
 PYTHONPATH=src python -m changept_detection \
-  --grid quick --seeds 1 --output-dir results --write-resources --plot
+  --grid quick --seeds 5 --output-dir results --write-resources --plot
 ```
 
-Selected experiments:
+Options: `--experiments S0 S3`, `--no-calibrate`, `--null-seeds 20`, `--plot-only <stem>`.
 
-```bash
-PYTHONPATH=src python -m changept_detection \
-  --experiments S3 S4 --grid quick --seeds 3 --output-dir results --plot
-```
+Outputs under `results/` (gitignored): CSV, JSON, summary, `results/plots/<stem>/`.
 
-Regenerate plots from saved CSV/JSON:
+## Methods
 
-```bash
-PYTHONPATH=src python -m changept_detection \
-  --plot-only synthetic_quick_S0-S1-S2-S3-S4-S5-S6-S7 \
-  --output-dir results --grid quick
-```
+| Module | Role |
+|--------|------|
+| `method/wpcg.py` | Offline Eq. (13) segmentation (fixed # segments). |
+| `method/proposed.py` | **`proposed_full`**: local alert + prototypes + global refinement. |
+| `baselines/core.py` | OT, classical, kernel, CUSUM, BOCPD, HMM registry. |
+| `experiments/synthetic.py` | Diagnostic suite S0–S7. |
 
-## Outputs
+`examples/wpcg_demo.py` is **not** the S0–S7 benchmark detector; use `proposed_full` there.
 
-| File | Contents |
-|------|----------|
-| `results/synthetic_<grid>_S0-....csv` | One row per (case, method) with metrics and citations |
-| `results/synthetic_<grid>_S0-....json` | Same as CSV |
-| `results/synthetic_<grid>_S0-...._summary.json` | Mean F1 / ARI / duplicate rate per (experiment, method) |
-| `results/plots/<stem>/S0.png … S7.png` | Per-experiment bar charts (proposed in red) |
-| `results/plots/<stem>/overview_S0-S7.png` | 2×4 panel overview |
-| `results/plots/<stem>/proposed_vs_best.png` | Proposed minus best baseline per experiment |
-| `results/plots/<stem>/recall_precision_scatter.png` | Trade-off across S0–S6 runs |
+## Calibration
 
-`results/` is gitignored.
-
-## Interpreting results
-
-The runner prints a short **results audit** when `--plot` is used. Expectations
-from the experiment plan (quick grids are noisy with few seeds):
-
-- **S0**: Classical / CUSUM / BOCPD often match or beat distributional methods on pure Gaussian shifts.
-- **S1–S2**: Proposed and OT/kernel scans should stay competitive on tail and mixture shifts.
-- **S3**: `coordinate_w2t` should be weak; `bures`, `sliced_wasserstein`, `mmd`, and proposed should do better.
-- **S4**: Covariance/factor-aware distances should help in high dimension.
-- **S5**: Transient shocks may trigger local methods; persistent shifts should be detected.
-- **S6**: Lower **duplicate rate** is better; proposed global filter should reduce extras vs `local_w2t`.
-- **S7**: Compare **ARI** / NMI (regime labels), not F1.
-
-Rows with `unavailable=1` mean an optional package is missing (`ruptures`, `POT`, `hmmlearn`).
-
-## Dependencies
-
-```bash
-pip install -r requirements.txt              # core + matplotlib
-pip install -r requirements-optional.txt   # ruptures, POT, hmmlearn
-```
-
-## Development notes
-
-`proposed_local_global` is a compact local Wasserstein + persistence + duplicate
-suppression implementation for sweeps, not the full prototype posterior layer in
-the paper plan.
+Default: thresholds from **null (no-change)** sequences (plan §5.1). Legacy: `--no-calibrate`.

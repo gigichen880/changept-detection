@@ -10,8 +10,8 @@ from typing import Any
 
 import numpy as np
 
-from changept_detection.baselines import resource_table
-from changept_detection.synthetic import (
+from changept_detection.baselines.core import resource_table
+from changept_detection.experiments.synthetic import (
     BASELINE_SETS,
     EXPERIMENT_DESCRIPTIONS,
     flatten_result,
@@ -77,6 +77,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="STEM",
         default=None,
         help="Skip experiments; plot from existing results/<STEM>.{csv,json} in --output-dir.",
+    )
+    parser.add_argument(
+        "--no-calibrate",
+        action="store_true",
+        help="Use in-sample quantile thresholds (legacy; not plan-faithful).",
+    )
+    parser.add_argument("--null-seeds", type=int, default=15, help="Null sequences per experiment for calibration.")
+    parser.add_argument(
+        "--false-alarm-quantile",
+        type=float,
+        default=0.95,
+        help="Quantile of null max-scores for threshold (0.95 ~ 5%% null FP rate).",
     )
     return parser.parse_args(argv)
 
@@ -175,6 +187,9 @@ def main(argv: list[str] | None = None) -> None:
             seeds=args.seeds,
             baselines=args.baselines,
             window=args.window,
+            calibrate=not args.no_calibrate,
+            null_seeds=args.null_seeds,
+            false_alarm_quantile=args.false_alarm_quantile,
         )
         rows = [flatten_result(result) for result in results]
         summary = summarize(rows)
@@ -194,7 +209,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Summary: {output_dir / f'{stem}_summary.json'}")
 
     if args.plot or args.plot_only:
-        from changept_detection.visualize import generate_all_plots, print_results_audit
+        from changept_detection.experiments.visualize import generate_all_plots, print_results_audit
 
         plot_dir = output_dir / "plots" / stem
         paths = generate_all_plots(rows, summary, plot_dir, grid=args.grid)

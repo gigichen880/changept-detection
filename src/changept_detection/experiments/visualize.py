@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-PROPOSED_METHOD = "proposed_local_global"
+PROPOSED_METHOD = "proposed_full"
 
 EXPERIMENT_ORDER = ["S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7"]
 
