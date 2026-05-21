@@ -88,17 +88,19 @@ Outputs are written as CSV, JSON, and summary JSON. `results/` is ignored by git
 
 ## Dependencies
 
-Required for the current core suite:
+Install core dependencies:
 
-- `numpy`
-- `scipy`
-- `scikit-learn`
+```bash
+pip install -r requirements.txt
+```
 
-Optional baselines:
-
-- `ruptures` for PELT, binary segmentation, and bottom-up segmentation
-- `POT` for Sinkhorn OT
-- `hmmlearn` for Gaussian HMM
+| Package          | Role                                                |
+| ---------------- | --------------------------------------------------- |
+| `numpy`, `scipy` | Data generation, distances, stats tests, BOCPD-lite |
+| `scikit-learn`   | Clustering metrics, density-ratio proxy             |
+| `ruptures`       | PELT, binary segmentation, bottom-up                |
+| `POT`            | Sinkhorn window scan                                |
+| `hmmlearn`       | Gaussian HMM regime baseline                        |
 
 If an optional dependency is missing, that baseline returns an unavailable row
 with the relevant resource citation instead of failing the whole run.
