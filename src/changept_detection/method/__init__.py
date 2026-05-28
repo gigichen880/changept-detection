@@ -1,23 +1,16 @@
-"""Proposed method and WPCG offline segmentation."""
+"""Proposed method package — swap in the real detector via placeholder.py."""
 
-from changept_detection.method.proposed import (
+from changept_detection.experiments.spec import PROPOSED_ABLATIONS, PROPOSED_PRIMARY
+from changept_detection.method.placeholder import (
     PROPOSED_DISPATCH,
-    matched_filter_1d,
     regime_labels_from_prototypes,
     run_proposed,
 )
-from changept_detection.method.wpcg import (
-    coordinate_sweep_optimize,
-    objective_J,
-    w2_squared_1d,
-)
 
 __all__ = [
+    "PROPOSED_ABLATIONS",
     "PROPOSED_DISPATCH",
-    "coordinate_sweep_optimize",
-    "matched_filter_1d",
-    "objective_J",
+    "PROPOSED_PRIMARY",
     "regime_labels_from_prototypes",
     "run_proposed",
-    "w2_squared_1d",
 ]

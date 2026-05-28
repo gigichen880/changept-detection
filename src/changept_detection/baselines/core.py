@@ -18,6 +18,8 @@ from scipy import linalg, stats
 from scipy.spatial.distance import cdist
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 
+from changept_detection.experiments.spec import PROPOSED_METHOD_KEYS
+
 
 try:  # Optional dependency recommended by the experiment plan.
     import ruptures as rpt  # type: ignore
@@ -290,41 +292,41 @@ BASELINE_RESOURCES: dict[str, BaselineResource] = {
         "proposed_local_only",
         "Proposed: local alert only",
         "Proposed method",
-        "docs/experiment_plan.md §3.1",
+        "docs/experiment_plan.md §2.2",
         "docs/experiment_plan.md",
-        "Ablation without prototypes or global refinement.",
+        "Placeholder in method/placeholder.py; ablation without prototypes or global refinement.",
     ),
     "proposed_local_persistence_proxy": BaselineResource(
         "proposed_local_persistence_proxy",
         "Proposed: local + persistence proxy",
         "Proposed method",
-        "docs/experiment_plan.md §3.1",
+        "docs/experiment_plan.md §2.2",
         "docs/experiment_plan.md",
-        "Former proposed_local_global stub (peak refine + persistence).",
+        "Placeholder in method/placeholder.py; persistence / duplicate-suppression ablation.",
     ),
     "proposed_local_global_no_proto": BaselineResource(
         "proposed_local_global_no_proto",
         "Proposed: local + global, no prototypes",
         "Proposed method",
-        "docs/experiment_plan.md §3.1",
+        "docs/experiment_plan.md §2.2",
         "docs/experiment_plan.md",
-        "Horizon subset refinement without prototype posterior.",
+        "Placeholder in method/placeholder.py; global refinement without prototype posterior.",
     ),
     "proposed_local_proto_no_global": BaselineResource(
         "proposed_local_proto_no_global",
         "Proposed: local + prototypes, no global",
         "Proposed method",
-        "docs/experiment_plan.md §3.1",
+        "docs/experiment_plan.md §2.2",
         "docs/experiment_plan.md",
-        "Prototype posterior shift without global refinement.",
+        "Placeholder in method/placeholder.py; prototype posterior without global refinement.",
     ),
     "proposed_full": BaselineResource(
         "proposed_full",
         "Proposed: local + prototypes + global refinement",
         "Proposed method",
-        "docs/experiment_plan.md §3.1; WPCG refinement optional via wpcg.py",
+        "docs/experiment_plan.md §2.1",
         "docs/experiment_plan.md",
-        "Full planned stack (compact implementation for sweeps).",
+        "Placeholder in method/placeholder.py — replace run_proposed() with the real method.",
     ),
     "proposed_local_global": BaselineResource(
         "proposed_local_global",
@@ -336,16 +338,7 @@ BASELINE_RESOURCES: dict[str, BaselineResource] = {
     ),
 }
 
-PROPOSED_METHOD_KEYS = frozenset(
-    {
-        "proposed_local_only",
-        "proposed_local_persistence_proxy",
-        "proposed_local_global_no_proto",
-        "proposed_local_proto_no_global",
-        "proposed_full",
-        "proposed_local_global",
-    }
-)
+# PROPOSED_METHOD_KEYS imported from experiments.spec
 
 
 def resource_table(keys: Iterable[str] | None = None) -> list[dict[str, str]]:
@@ -849,9 +842,20 @@ def run_gaussian_hmm(
     )
 
 
-def run_coordinate_w2_matched_filter(x: np.ndarray, window: int = 50, **kwargs) -> DetectionResult:
-    from changept_detection.method.proposed import matched_filter_1d
+def matched_filter_1d(scores: np.ndarray, width: int) -> np.ndarray:
+    """Triangular matched filter (Cheng et al. style post-processing proxy)."""
+    width = max(3, width)
+    kernel = np.bartlett(width)
+    kernel /= np.sum(kernel)
+    filled = np.where(np.isfinite(scores), scores, 0.0)
+    filtered = np.convolve(filled, kernel, mode="same")
+    mask = np.isfinite(scores)
+    out = np.full_like(scores, np.nan)
+    out[mask] = filtered[mask]
+    return out
 
+
+def run_coordinate_w2_matched_filter(x: np.ndarray, window: int = 50, **kwargs) -> DetectionResult:
     metric = WINDOW_METRICS["coordinate_w2_window_scan"]
     skip = {"threshold", "threshold_quantile", "min_distance", "max_changes", "window", "smooth", "burn_in"}
     extra = {k: v for k, v in kwargs.items() if k not in skip}

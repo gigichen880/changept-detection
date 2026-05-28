@@ -1,56 +1,106 @@
-# Change-Point Detection Experiments
+# Change-Point Detection Experiment Framework
 
-Prototype and experiment scaffold for online local–global Wasserstein regime
-filtering in financial changepoint detection. Design: `docs/experiment_plan.md`.
+Plan-aligned scaffold for **Set A synthetic changepoint detection**
+([`docs/experiment_plan.md`](docs/experiment_plan.md)). Baselines, null calibration,
+metrics, and plots are wired; the proposed local–global Wasserstein method is a
+**placeholder** until you plug in the real detector.
 
 ## Repository layout
 
 ```text
-.
-├── docs/                          # experiment plan, baseline citations
-├── examples/
-│   └── wpcg_demo.py               # standalone WPCG / Eq. (13) demo
-├── requirements.txt
-├── requirements-optional.txt
+changept-detection/
+├── docs/
+│   ├── experiment_plan.md       # canonical experiment design (Set A/B/C)
+│   ├── baseline_resources.md    # baseline citations
+│   └── deep-research-report.md  # background literature notes (not used by runner)
+├── requirements.txt             # numpy, scipy, sklearn, matplotlib
+├── requirements-optional.txt    # ruptures, POT, hmmlearn
 └── src/changept_detection/
-    ├── __main__.py                # python -m changept_detection
-    ├── method/                    # our method
-    │   ├── wpcg.py                # offline WPCG coordinate sweep
-    │   └── proposed.py            # proposed_full + ablations
+    ├── __main__.py              # python -m changept_detection
     ├── baselines/
-    │   └── core.py                # baseline registry + detectors
-    └── experiments/
-        ├── synthetic.py           # S0–S7 generators and sweeps
-        ├── calibration.py         # null-sequence threshold calibration
-        ├── runner.py              # CLI
-        └── visualize.py           # result plots
+    │   └── core.py              # detector registry + metrics (plan §2.3)
+    ├── experiments/
+    │   ├── spec.py              # S0–S7 ↔ plan A1–A7, method lists, primary metrics
+    │   ├── synthetic.py         # DGP generators + run_case
+    │   ├── calibration.py       # null-sequence thresholds (plan §3.1)
+    │   ├── metrics.py           # CP-F1, S6 duplicate metrics, score audit
+    │   ├── runner.py            # CLI entry
+    │   └── visualize.py         # bar charts, overview, audit prints
+    └── method/
+        ├── placeholder.py       # ← implement run_proposed() here
+        └── proposed.py          # stable re-export of placeholder
 ```
 
-## Run experiments
+Generated artifacts go to `results/` (gitignored). Do not commit CSV/JSON/plots.
+
+## Quick start
+
+From the repo root:
 
 ```bash
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pip install -r requirements-optional.txt   # recommended
+pip install -r requirements-optional.txt   # PELT, Sinkhorn, HMM baselines
 
 PYTHONPATH=src python -m changept_detection \
-  --grid quick --seeds 5 --output-dir results --write-resources --plot
+  --grid quick --seeds 2 --output-dir results --write-resources --plot
 ```
 
-Options: `--experiments S0 S3`, `--no-calibrate`, `--null-seeds 20`, `--plot-only <stem>`.
+### Common CLI flags
 
-Outputs under `results/` (gitignored): CSV, JSON, summary, `results/plots/<stem>/`.
+| Flag | Purpose |
+|------|---------|
+| `--experiments S0 S3 S7` | Subset of Set A (default: all S0–S7) |
+| `--grid quick\|full` | Smoke grid vs full difficulty sweep |
+| `--seeds N` | Random seeds per parameter setting |
+| `--null-seeds N` | Null sequences for calibration (default 8) |
+| `--no-calibrate` | Legacy in-sample thresholds (not plan §3.1) |
+| `--plot-only STEM` | Replot from existing `results/STEM.{csv,json}` |
 
-## Methods
+### Outputs
 
-| Module | Role |
-|--------|------|
-| `method/wpcg.py` | Offline Eq. (13) segmentation (fixed # segments). |
-| `method/proposed.py` | **`proposed_full`**: local alert + prototypes + global refinement. |
-| `baselines/core.py` | OT, classical, kernel, CUSUM, BOCPD, HMM registry. |
-| `experiments/synthetic.py` | Diagnostic suite S0–S7. |
+| File | Contents |
+|------|----------|
+| `results/synthetic_quick_S0-…-S7.csv` | Per-run metrics + calibration fields |
+| `results/synthetic_quick_…_summary.json` | Aggregated means per experiment × method |
+| `results/synthetic_quick_…_score_audit.csv` | Threshold vs max-score diagnostic |
+| `results/plots/synthetic_quick_…/` | Per-experiment bars, overview, proposed vs best |
 
-`examples/wpcg_demo.py` is **not** the S0–S7 benchmark detector; use `proposed_full` there.
+## Plug in the proposed method
 
-## Calibration
+1. Edit `src/changept_detection/method/placeholder.py`.
+2. Replace `run_proposed()` (and `regime_labels_from_prototypes()` for S7 regime metrics).
+3. Return `DetectionResult(changepoints, scores, threshold, metadata)` from
+   `changept_detection.baselines.core`.
+4. Re-run the CLI — runner, calibration, and plots stay unchanged.
 
-Default: thresholds from **null (no-change)** sequences (plan §5.1). Legacy: `--no-calibrate`.
+Registered keys (plan §2.2): `proposed_local_only`, `proposed_local_persistence_proxy`,
+`proposed_local_global_no_proto`, `proposed_local_proto_no_global`, `proposed_full`.
+
+## Set A experiment map
+
+| Id | Plan | Purpose |
+|----|------|---------|
+| S0 | A1 | Mean/variance sanity check |
+| S1 | A2 | Variance-matched tail shift |
+| S2 | A3 | Scenario-mixture weight shift |
+| S3 | A4 | Fixed-marginal correlation crisis |
+| S4 | A5 | Low-rank factor shock |
+| S5 | A6 | Transient vs persistent regime |
+| S6 | A7 | Duplicate local peak suppression |
+| S7 | — | Recurring-regime labeling (ARI/NMI) |
+
+Per-experiment baseline lists and primary metrics: `src/changept_detection/experiments/spec.py`.
+
+## Protocol notes
+
+- **Calibration** (plan §3.1): thresholds from matched no-change nulls, frozen before
+  evaluation. Tune via `--null-seeds` and `--false-alarm-quantile` (default 0.95).
+- **Detection tolerance** (plan §3.2): `|τ̂ − τ*| ≤ w/2` via `spec.detection_tolerance()`.
+- **Optional deps**: without `ruptures` / `POT` / `hmmlearn`, affected baselines appear as
+  `unavailable=1` rows; core window-scan methods still run.
+
+## Documentation
+
+- Experiment design: [`docs/experiment_plan.md`](docs/experiment_plan.md)
+- Baseline citations: [`docs/baseline_resources.md`](docs/baseline_resources.md)

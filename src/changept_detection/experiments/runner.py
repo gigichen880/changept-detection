@@ -11,12 +11,9 @@ from typing import Any
 import numpy as np
 
 from changept_detection.baselines.core import resource_table
-from changept_detection.experiments.synthetic import (
-    BASELINE_SETS,
-    EXPERIMENT_DESCRIPTIONS,
-    flatten_result,
-    run_synthetic_suite,
-)
+from changept_detection.experiments.metrics import build_score_audit_table
+from changept_detection.experiments.spec import BASELINE_SETS, EXPERIMENT_DESCRIPTIONS, PLAN_SECTION
+from changept_detection.experiments.synthetic import flatten_result, run_synthetic_suite
 
 
 def json_default(value: Any) -> Any:
@@ -30,7 +27,6 @@ def json_default(value: Any) -> Any:
 
 
 def sanitize_nans(obj: Any) -> Any:
-    """Recursively replace NaN/Inf with null for strict JSON."""
     if isinstance(obj, dict):
         return {k: sanitize_nans(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -47,23 +43,23 @@ def sanitize_nans(obj: Any) -> Any:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run synthetic changepoint-detection experiments from docs/experiment_plan.md."
+        description="Run Set A synthetic changepoint experiments (docs/experiment_plan.md)."
     )
     parser.add_argument(
         "--experiments",
         nargs="+",
         default=list(BASELINE_SETS),
         choices=list(BASELINE_SETS),
-        help="Synthetic experiments to run (S0-S7).",
+        help="Synthetic experiments S0–S7 (plan sections A1–A7).",
     )
     parser.add_argument(
         "--grid",
         choices=["quick", "full"],
         default="quick",
-        help="Quick smoke grids or full difficulty sweeps.",
+        help="Quick smoke grids or full difficulty sweeps from the plan.",
     )
     parser.add_argument("--seeds", type=int, default=1, help="Random seeds per parameter setting.")
-    parser.add_argument("--baselines", nargs="+", default=None, help="Override default baseline keys.")
+    parser.add_argument("--baselines", nargs="+", default=None, help="Override default method keys.")
     parser.add_argument("--window", type=int, default=None, help="Rolling window length override.")
     parser.add_argument("--output-dir", default="results", help="Directory for CSV/JSON/plots.")
     parser.add_argument("--write-resources", action="store_true", help="Write baseline_resources.json.")
@@ -81,14 +77,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--no-calibrate",
         action="store_true",
-        help="Use in-sample quantile thresholds (legacy; not plan-faithful).",
+        help="Use in-sample quantile thresholds (legacy; not plan §3.1).",
     )
-    parser.add_argument("--null-seeds", type=int, default=8, help="Null sequences per case config for calibration.")
+    parser.add_argument(
+        "--null-seeds",
+        type=int,
+        default=8,
+        help="Null sequences per case config for threshold calibration (plan §3.1).",
+    )
     parser.add_argument(
         "--false-alarm-quantile",
         type=float,
         default=0.95,
-        help="Quantile of null max-scores for threshold (0.95 ~ 5%% null FP rate).",
+        help="Quantile of null max-scores for threshold (~5%% null FP rate at 0.95).",
     )
     return parser.parse_args(argv)
 
@@ -131,6 +132,7 @@ def summarize(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             summary.append(
                 {
                     "experiment": experiment,
+                    "plan_section": PLAN_SECTION.get(experiment, ""),
                     "method": method,
                     "available_runs": 0,
                     "mean_f1": np.nan,
@@ -144,6 +146,7 @@ def summarize(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         summary.append(
             {
                 "experiment": experiment,
+                "plan_section": PLAN_SECTION.get(experiment, ""),
                 "method": method,
                 "available_runs": len(available),
                 "mean_f1": _mean_metric(available, "f1"),
@@ -151,6 +154,9 @@ def summarize(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "mean_precision": _mean_metric(available, "precision"),
                 "mean_ari": _mean_metric(available, "ari"),
                 "mean_duplicate_rate": _mean_metric(available, "duplicate_rate"),
+                "mean_threshold": _mean_metric(available, "threshold"),
+                "mean_max_score": _mean_metric(available, "max_score"),
+                "mean_num_detected": _mean_metric(available, "num_detected"),
             }
         )
     return summary
@@ -196,17 +202,20 @@ def main(argv: list[str] | None = None) -> None:
         write_csv(rows, output_dir / f"{stem}.csv")
         write_json(rows, output_dir / f"{stem}.json")
         write_json(summary, output_dir / f"{stem}_summary.json")
+        audit = build_score_audit_table(rows)
+        write_json(audit, output_dir / f"{stem}_score_audit.json")
+        write_csv(audit, output_dir / f"{stem}_score_audit.csv")
         if args.write_resources:
             write_json(resource_table(args.baselines), output_dir / "baseline_resources.json")
 
-        print("Synthetic CPD experiments complete")
+        print("Set A synthetic CPD experiments complete")
         print(f"Experiments: {', '.join(args.experiments)}")
         for experiment in args.experiments:
-            print(f"  {experiment}: {EXPERIMENT_DESCRIPTIONS[experiment]}")
+            section = PLAN_SECTION.get(experiment, "")
+            print(f"  {experiment} ({section}): {EXPERIMENT_DESCRIPTIONS[experiment]}")
         print(f"Rows: {len(rows)}")
         print(f"CSV: {output_dir / f'{stem}.csv'}")
-        print(f"JSON: {output_dir / f'{stem}.json'}")
-        print(f"Summary: {output_dir / f'{stem}_summary.json'}")
+        print(f"Score audit: {output_dir / f'{stem}_score_audit.csv'}")
 
     if args.plot or args.plot_only:
         from changept_detection.experiments.visualize import generate_all_plots, print_results_audit

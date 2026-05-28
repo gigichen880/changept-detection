@@ -1,4 +1,4 @@
-"""Synthetic experiment suite (S0–S7), runner, calibration, and plots."""
+"""Synthetic experiment suite (S0-S7), runner, calibration, and plots."""
 
 from changept_detection.experiments.calibration import (
     CalibratedThresholds,
@@ -8,10 +8,8 @@ from changept_detection.experiments.calibration import (
     calibration_config_key,
 )
 from changept_detection.experiments.runner import main, parse_args
+from changept_detection.experiments.spec import BASELINE_SETS, EXPERIMENT_DESCRIPTIONS, PROPOSED_PRIMARY
 from changept_detection.experiments.synthetic import (
-    BASELINE_SETS,
-    EXPERIMENT_DESCRIPTIONS,
-    PROPOSED_PRIMARY,
     ExperimentResult,
     SyntheticCase,
     flatten_result,

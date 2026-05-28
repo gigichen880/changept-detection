@@ -1,0 +1,5 @@
+# Optional baselines from docs/experiment_plan.md §2.3 (graceful fallback if missing).
+-r requirements.txt
+ruptures>=1.1.9
+POT>=0.9.0
+hmmlearn>=0.3.0

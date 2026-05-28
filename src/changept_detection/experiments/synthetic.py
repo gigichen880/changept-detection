@@ -1,10 +1,8 @@
 """
-Synthetic data generators and experiment orchestration for docs/experiment_plan.md.
+Synthetic data generators and experiment orchestration for docs/experiment_plan.md Set A.
 
-The suite covers S0-S7 from the plan: mean/variance shifts, tail shifts,
-mixture reweighting, fixed-marginal correlation shifts, low-rank factor shocks,
-transient-vs-persistent shocks, duplicate local peak suppression, and recurring
-regime-label interpretability.
+Experiment ids S0-S7 map to plan sections A1-A7 (+ recurring-regime labeling as S7).
+Method lists and metrics are defined in ``experiments.spec``.
 """
 
 from __future__ import annotations
@@ -20,13 +18,23 @@ from changept_detection.baselines.core import (
     cluster_rolling_windows,
     clustering_metrics,
     detection_metrics,
-    duplicate_rate,
     run_baseline,
 )
 from changept_detection.experiments.calibration import (
     CalibratedThresholds,
     calibrate_for_case,
     calibration_config_key,
+)
+from changept_detection.experiments.metrics import (
+    score_diagnostics,
+    s6_metrics,
+    with_localization_alias,
+)
+from changept_detection.experiments.spec import (
+    BASELINE_SETS,
+    EXPERIMENT_DESCRIPTIONS,
+    PROPOSED_PRIMARY,
+    detection_tolerance,
 )
 from changept_detection.method.proposed import regime_labels_from_prototypes
 
@@ -53,104 +61,6 @@ class ExperimentResult:
     params: dict[str, Any]
     resource: dict[str, str]
     metadata: dict[str, Any] = field(default_factory=dict)
-
-
-# Primary proposed method for tables/plots; ablations included where noted in plan.
-PROPOSED_PRIMARY = "proposed_full"
-
-BASELINE_SETS: dict[str, list[str]] = {
-    "S0": [
-        "pelt_l2",
-        "pelt_normal",
-        "binseg",
-        "cusum_mean",
-        "cusum_vol",
-        "bocpd_gaussian",
-        "coordinate_w2_window_scan",
-        "coordinate_w2_matched_filter",
-        PROPOSED_PRIMARY,
-        "proposed_local_persistence_proxy",
-    ],
-    "S1": [
-        "ewma_vol",
-        "cusum_vol",
-        "ks",
-        "cvm",
-        "mmd",
-        "energy",
-        "pelt_rbf",
-        "coordinate_w2_matched_filter",
-        PROPOSED_PRIMARY,
-    ],
-    "S2": [
-        "ks",
-        "mmd",
-        "energy",
-        "pelt_rbf",
-        "coordinate_w2_matched_filter",
-        "bocpd_gaussian",
-        PROPOSED_PRIMARY,
-    ],
-    "S3": [
-        "coordinate_w2t",
-        "ks",
-        "pelt_l2",
-        "pelt_rbf",
-        "mmd",
-        "energy",
-        "bures",
-        "sliced_wasserstein",
-        "sinkhorn",
-        PROPOSED_PRIMARY,
-        "proposed_local_global_no_proto",
-    ],
-    "S4": [
-        "pelt_rbf",
-        "mmd",
-        "sliced_wasserstein",
-        "sinkhorn",
-        "covariance_frobenius",
-        "pca_subspace",
-        "bures",
-        PROPOSED_PRIMARY,
-    ],
-    "S5": [
-        "coordinate_w2_matched_filter",
-        "mmd",
-        "pelt_rbf",
-        "bocpd_gaussian",
-        "cusum_mean",
-        "ewma_vol",
-        PROPOSED_PRIMARY,
-        "proposed_local_only",
-        "proposed_local_persistence_proxy",
-    ],
-    "S6": [
-        "coordinate_w2_matched_filter",
-        "mmd",
-        "window_rbf",
-        PROPOSED_PRIMARY,
-        "proposed_local_persistence_proxy",
-    ],
-    "S7": [
-        "gaussian_hmm",
-        "coordinate_w2_matched_filter",
-        PROPOSED_PRIMARY,
-        "proposed_local_proto_no_global",
-    ],
-}
-
-
-EXPERIMENT_DESCRIPTIONS = {
-    "S0": "Sanity-check Gaussian mean/variance shifts.",
-    "S1": "Variance-matched Student-t tail shift.",
-    "S2": "Scenario-mixture weight shift.",
-    "S3": "Fixed-marginal correlation crisis.",
-    "S4": "Low-rank factor covariance shock.",
-    "S5": "Transient shock versus persistent regime.",
-    "S6": "Duplicate local peak suppression.",
-    "S7": "Recurring-regime posterior/label interpretability.",
-}
 
 
 def equicorrelation(d: int, rho: float) -> np.ndarray:
@@ -721,9 +631,6 @@ def baseline_kwargs(key: str, case: SyntheticCase, window: int, n_bkps: int | No
             "metric": metric,
             "horizon": max(2 * window, 80),
             "n_prototypes": min(4, max(2, n_proto)),
-            "n_changepoints_hint": len(case.changepoints),
-            "use_matched_filter": True,
-            "use_wpcg_refine": False,
         }
     if key == "sinkhorn":
         return {"window": window, "threshold_quantile": 0.99, "min_distance": window}
@@ -751,7 +658,7 @@ def run_case(
         baselines = BASELINE_SETS[case.experiment]
     window = resolve_window(case, window or max(20, min(80, len(case.x) // 8)))
     n_bkps = len(case.changepoints) if n_bkps is None else n_bkps
-    tolerance = max(5, window // 2)
+    tolerance = detection_tolerance(window)
     results = []
     for key in baselines:
         kwargs = baseline_kwargs(key, case, window=window, n_bkps=n_bkps)
@@ -763,9 +670,13 @@ def run_case(
                 if key.startswith("proposed"):
                     kwargs["alert_threshold"] = th
         result = run_baseline(key, case.x, **kwargs)
-        metrics = detection_metrics(case.changepoints, result.changepoints, tolerance=tolerance)
+        metrics = with_localization_alias(
+            detection_metrics(case.changepoints, result.changepoints, tolerance=tolerance)
+        )
+        if not result.metadata.get("unavailable"):
+            metrics.update(score_diagnostics(result))
         if case.experiment == "S6":
-            metrics["duplicate_rate"] = duplicate_rate(case.changepoints, result.changepoints, event_window=window)
+            metrics.update(s6_metrics(case.changepoints, result.changepoints, window, metrics))
         if result.metadata.get("unavailable"):
             metrics = {**metrics, "unavailable": 1.0}
         else:
