@@ -2,7 +2,8 @@
 
 Plan-aligned scaffold for **Set A synthetic changepoint detection**
 ([`docs/experiment_plan.md`](docs/experiment_plan.md)). Experiment ids **match the plan**
-(`A1`–`A7`). The proposed method is a **placeholder** until you plug in the real detector.
+(`A1`–`A7`). The proposed local–global Wasserstein method is implemented in
+`method/local_global_wasserstein.py`.
 
 ## Repository layout
 
@@ -25,8 +26,11 @@ changept-detection/
     │   ├── runner.py            # CLI
     │   └── visualize.py
     └── method/
-        ├── placeholder.py       # ← implement run_proposed() here
-        └── proposed.py          # re-export of placeholder
+        ├── local_global_wasserstein.py  # detector + run_proposed adapter
+        ├── proposed.py                  # stable public import path
+        ├── wasserstein_distances.py
+        ├── prototype_layer.py
+        └── global_refinement.py
 ```
 
 ## Quick start
@@ -84,11 +88,25 @@ A1 **400**, A2 **48**, A3 **160**, A4 **72**, A5 **120**, A6 **90**, A7 **288**,
 
 Start with subsets: `--experiments A2 A3 --grid full --seeds 3`.
 
-## Plug in the proposed method
+## Proposed method
 
-Edit `src/changept_detection/method/placeholder.py` → replace `run_proposed()` (and
-`regime_labels_from_prototypes()` for `A_regime`). Return `DetectionResult` unchanged;
-re-run the CLI.
+Three-layer local–global Wasserstein filter (design:
+[`docs/proposed_method.md`](docs/proposed_method.md)).
+
+**Main entry points**
+
+| Use case | Import / call |
+|----------|----------------|
+| Experiments & baselines | `run_baseline("proposed_full", x, **kwargs)` → `method.proposed.run_proposed` |
+| Direct detector API | `LocalGlobalWassersteinDetector(...).detect(x)` |
+| Stable imports | `from changept_detection.method import run_proposed, LocalGlobalWassersteinDetector` |
+
+Implementation lives in `method/local_global_wasserstein.py`; `method/proposed.py` is the
+stable re-export layer used by the baseline registry.
+
+Registry keys: `proposed_full` (primary), `proposed_local_only`,
+`proposed_local_global_no_proto`, `proposed_local_proto_no_global`,
+`proposed_local_persistence_proxy`.
 
 ## Protocol
 

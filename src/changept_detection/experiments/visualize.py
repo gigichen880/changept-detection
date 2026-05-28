@@ -56,15 +56,6 @@ def print_results_audit(rows: list[dict[str, Any]], summary: list[dict[str, Any]
     if unavailable:
         print(f"Unavailable baselines (install optional deps): {', '.join(unavailable)}")
 
-    placeholder_runs = [
-        r for r in rows if str(r.get("meta_placeholder", "")).lower() in {"true", "1"}
-    ]
-    if placeholder_runs:
-        print(
-            f"NOTE: {PROPOSED_PRIMARY} is still the placeholder in method/placeholder.py "
-            f"({len(placeholder_runs)} runs). Replace run_proposed() before interpreting proposed scores."
-        )
-
     def proposed_metric(exp: str, metric: str) -> float:
         return aggregate_by_method(rows, exp, metric).get(PROPOSED_METHOD, float("nan"))
 

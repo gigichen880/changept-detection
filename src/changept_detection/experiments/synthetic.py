@@ -626,11 +626,13 @@ def baseline_kwargs(key: str, case: SyntheticCase, window: int, n_bkps: int | No
             n_proto = len(np.unique(case.regime_labels))
         return {
             "window": window,
-            "min_persistence": 2,
-            "min_distance": window,
+            "min_persistence": 3 if key == "proposed_full" else 2,
+            "min_distance": max(1, window // 2),
             "metric": metric,
             "horizon": max(2 * window, 80),
             "n_prototypes": min(4, max(2, n_proto)),
+            "penalty": 1.0,
+            "temperature": 1.0,
         }
     if key == "sinkhorn":
         return {"window": window, "threshold_quantile": 0.99, "min_distance": window}
@@ -669,6 +671,7 @@ def run_case(
                 kwargs["threshold"] = th
                 if key.startswith("proposed"):
                     kwargs["alert_threshold"] = th
+                    kwargs["shift_threshold"] = th
         result = run_baseline(key, case.x, **kwargs)
         metrics = with_localization_alias(
             detection_metrics(case.changepoints, result.changepoints, tolerance=tolerance)

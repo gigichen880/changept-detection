@@ -11,7 +11,8 @@
 | Plan | Runner id | Module |
 |------|-----------|--------|
 | Set A §A1–A7 | `A1` … `A7` | `experiments/synthetic.py` generators |
-| §4.3 regime labels | `A_regime` | same + `method/placeholder.regime_labels_from_prototypes` |
+| §4.3 regime labels | `A_regime` | same + `method.proposed.regime_labels_from_prototypes` |
+| Proposed method | `proposed_full` (primary) | `method/local_global_wasserstein.py` |
 | Set B B1–B3 | — | not implemented |
 | Set C C1–C3 | — | not implemented |
 

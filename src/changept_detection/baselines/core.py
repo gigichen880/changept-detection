@@ -294,7 +294,7 @@ BASELINE_RESOURCES: dict[str, BaselineResource] = {
         "Proposed method",
         "docs/experiment_plan.md §2.2",
         "docs/experiment_plan.md",
-        "Placeholder in method/placeholder.py; ablation without prototypes or global refinement.",
+        "Local Wasserstein alert only; see method/local_global_wasserstein.py.",
     ),
     "proposed_local_persistence_proxy": BaselineResource(
         "proposed_local_persistence_proxy",
@@ -302,7 +302,7 @@ BASELINE_RESOURCES: dict[str, BaselineResource] = {
         "Proposed method",
         "docs/experiment_plan.md §2.2",
         "docs/experiment_plan.md",
-        "Placeholder in method/placeholder.py; persistence / duplicate-suppression ablation.",
+        "Local alert with persistence filter; no global layer.",
     ),
     "proposed_local_global_no_proto": BaselineResource(
         "proposed_local_global_no_proto",
@@ -310,7 +310,7 @@ BASELINE_RESOURCES: dict[str, BaselineResource] = {
         "Proposed method",
         "docs/experiment_plan.md §2.2",
         "docs/experiment_plan.md",
-        "Placeholder in method/placeholder.py; global refinement without prototype posterior.",
+        "Local alert + greedy global refinement without prototype posterior.",
     ),
     "proposed_local_proto_no_global": BaselineResource(
         "proposed_local_proto_no_global",
@@ -318,15 +318,15 @@ BASELINE_RESOURCES: dict[str, BaselineResource] = {
         "Proposed method",
         "docs/experiment_plan.md §2.2",
         "docs/experiment_plan.md",
-        "Placeholder in method/placeholder.py; prototype posterior without global refinement.",
+        "Local alert + prototype posterior without global refinement.",
     ),
     "proposed_full": BaselineResource(
         "proposed_full",
         "Proposed: local + prototypes + global refinement",
         "Proposed method",
-        "docs/experiment_plan.md §2.1",
-        "docs/experiment_plan.md",
-        "Placeholder in method/placeholder.py — replace run_proposed() with the real method.",
+        "docs/proposed_method.md §0",
+        "docs/proposed_method.md",
+        "Full three-layer pipeline in method/local_global_wasserstein.py.",
     ),
     "proposed_local_global": BaselineResource(
         "proposed_local_global",

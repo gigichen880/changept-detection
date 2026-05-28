@@ -19,11 +19,11 @@ Experiment design and per-suite method lists: `docs/experiment_plan.md` and
 Additional keys used in specific Set A experiments (e.g. `ks`, `cvm`, `ewma_vol`,
 `sinkhorn`, `covariance_frobenius`) are documented inline in `BASELINE_RESOURCES`.
 
-## Proposed method (placeholder)
+## Proposed method
 
-All `proposed_*` keys dispatch to `changept_detection.method.placeholder.run_proposed`.
-Replace that function with the real local–global Wasserstein regime filter; the runner
-and calibration pipeline stay unchanged.
+All `proposed_*` keys dispatch through `changept_detection.method.proposed.run_proposed`
+(full implementation in `method/local_global_wasserstein.py`). Primary comparison key:
+`proposed_full`. Design: `docs/proposed_method.md`.
 
 ## Optional dependencies
 
