@@ -45,17 +45,34 @@ PYTHONPATH=src python -m changept_detection \
 
 ### CLI
 
+Output layout (one folder per run):
+
+```text
+results/seta_{grid}_{A1-A2-…}/
+├── metrics/
+│   ├── results.csv          # per-config × seed × method rows
+│   ├── results.json
+│   ├── summary.json         # aggregated means
+│   └── score_audit.csv      # metric sanity checks
+└── plots/
+    ├── metrics/             # bar charts (A1.png, overview_set_a.png, …)
+    └── detections/          # true vs detected CP timelines + proposed pipeline
+        ├── A1_detections.png
+        └── A1_proposed_pipeline.png
+```
+
+Legacy flat files (`results/seta_*.csv`) are still read by `--plot-only` if present.
+
 | Flag | Example | Purpose |
 |------|---------|---------|
 | `--experiments` | `A1 A4 A_regime` | Subset (default: all Set A ids) |
 | `--grid` | `quick` or `full` | Smoke vs full difficulty sweep |
 | `--seeds` | `5` | Random seeds per DGP config |
-| `--plot-only` | `seta_quick_A1-A7` | Replot existing results stem |
-| `--plot-detections` | | True vs detected CP timelines per experiment |
+| `--plot` | | Run suite + metric bar charts **and** detection timelines |
+| `--plot-only` | `seta_quick_A1-A7` | Replot from existing `metrics/results.csv` |
+| `--plot-detections` | | Detection timelines only (also included with `--plot`) |
 | `--diagnostics-only` | | Skip suite; only run detection diagnostics |
 | `--no-progress` | | Disable tqdm progress bar |
-
-Output stem format: `seta_{grid}_{A1-A2-…}.csv` under `results/` (gitignored).
 
 ## Experiments (Set A)
 

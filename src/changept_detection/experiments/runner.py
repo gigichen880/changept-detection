@@ -66,13 +66,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--plot",
         action="store_true",
-        help="Generate comparison plots after the run (requires matplotlib).",
+        help="Generate metric bar charts and detection timeline plots (requires matplotlib).",
     )
     parser.add_argument(
         "--plot-only",
         metavar="STEM",
         default=None,
-        help="Skip experiments; plot from existing results/<STEM>.{csv,json} in --output-dir.",
+        help="Skip experiments; replot from existing results/<STEM>/metrics/results.csv (legacy flat CSV also supported).",
     )
     parser.add_argument(
         "--no-calibrate",
@@ -99,7 +99,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--plot-detections",
         action="store_true",
-        help="Generate true-vs-detected changepoint timeline plots (representative case per experiment).",
+        help="Also generate detection timeline plots (included automatically with --plot).",
     )
     parser.add_argument(
         "--diagnostics-only",
@@ -179,15 +179,63 @@ def result_stem(grid: str, experiments: list[str]) -> str:
     return f"seta_{grid}_{'-'.join(experiments)}"
 
 
+def run_dir(output_dir: Path, stem: str) -> Path:
+    """Root folder for one experiment run."""
+    return output_dir / stem
+
+
+def metrics_dir(output_dir: Path, stem: str) -> Path:
+    return run_dir(output_dir, stem) / "metrics"
+
+
+def plots_metrics_dir(output_dir: Path, stem: str) -> Path:
+    return run_dir(output_dir, stem) / "plots" / "metrics"
+
+
+def plots_detections_dir(output_dir: Path, stem: str) -> Path:
+    return run_dir(output_dir, stem) / "plots" / "detections"
+
+
 def load_rows_from_output(output_dir: Path, stem: str) -> list[dict[str, Any]]:
-    json_path = output_dir / f"{stem}.json"
-    if json_path.exists():
-        return json.loads(json_path.read_text())
-    csv_path = output_dir / f"{stem}.csv"
-    if not csv_path.exists():
-        raise FileNotFoundError(f"No results found for stem '{stem}' in {output_dir}")
-    with csv_path.open(newline="") as handle:
-        return list(csv.DictReader(handle))
+    candidates = [
+        metrics_dir(output_dir, stem) / "results.json",
+        metrics_dir(output_dir, stem) / "results.csv",
+        output_dir / f"{stem}.json",
+        output_dir / f"{stem}.csv",
+    ]
+    for path in candidates:
+        if not path.exists():
+            continue
+        if path.suffix == ".json":
+            return json.loads(path.read_text())
+        with path.open(newline="") as handle:
+            return list(csv.DictReader(handle))
+    raise FileNotFoundError(
+        f"No results found for stem '{stem}' under {run_dir(output_dir, stem) / 'metrics'} "
+        f"or legacy {output_dir / stem}.csv"
+    )
+
+
+def print_output_tree(output_dir: Path, stem: str) -> None:
+    root = run_dir(output_dir, stem)
+    print("\nOutput layout:")
+    print(f"  {root}/")
+    print("    metrics/")
+    for name in ("results.csv", "results.json", "summary.json", "score_audit.csv", "score_audit.json"):
+        path = root / "metrics" / name
+        if path.exists():
+            print(f"      {name}")
+    print("    plots/")
+    print("      metrics/          # bar charts (A1.png, overview_set_a.png, …)")
+    metrics_plot_dir = plots_metrics_dir(output_dir, stem)
+    if metrics_plot_dir.exists():
+        for path in sorted(metrics_plot_dir.glob("*.png")):
+            print(f"        {path.name}")
+    print("      detections/       # true vs detected CP timelines + proposed pipeline")
+    detections_plot_dir = plots_detections_dir(output_dir, stem)
+    if detections_plot_dir.exists():
+        for path in sorted(detections_plot_dir.glob("*.png")):
+            print(f"        {path.name}")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -216,37 +264,39 @@ def main(argv: list[str] | None = None) -> None:
         )
         rows = [flatten_result(result) for result in results]
         summary = summarize(rows)
-        write_csv(rows, output_dir / f"{stem}.csv")
-        write_json(rows, output_dir / f"{stem}.json")
-        write_json(summary, output_dir / f"{stem}_summary.json")
+        mdir = metrics_dir(output_dir, stem)
+        write_csv(rows, mdir / "results.csv")
+        write_json(rows, mdir / "results.json")
+        write_json(summary, mdir / "summary.json")
         audit = build_score_audit_table(rows)
-        write_json(audit, output_dir / f"{stem}_score_audit.json")
-        write_csv(audit, output_dir / f"{stem}_score_audit.csv")
+        write_json(audit, mdir / "score_audit.json")
+        write_csv(audit, mdir / "score_audit.csv")
         if args.write_resources:
-            write_json(resource_table(args.baselines), output_dir / "baseline_resources.json")
+            write_json(resource_table(args.baselines), mdir / "baseline_resources.json")
 
         print("Set A synthetic CPD experiments complete")
         print(f"Experiments: {', '.join(args.experiments)}")
         for experiment in args.experiments:
             print(f"  {experiment}: {EXPERIMENT_DESCRIPTIONS[experiment]}")
         print(f"Rows: {len(rows)}")
-        print(f"CSV: {output_dir / f'{stem}.csv'}")
-        print(f"Score audit: {output_dir / f'{stem}_score_audit.csv'}")
+        print(f"Metrics: {mdir / 'results.csv'}")
+        print(f"Summary: {mdir / 'summary.json'}")
+        print(f"Score audit: {mdir / 'score_audit.csv'}")
 
     if args.plot or args.plot_only:
         from changept_detection.experiments.visualize import generate_all_plots, print_results_audit
 
-        plot_dir = output_dir / "plots" / stem
+        plot_dir = plots_metrics_dir(output_dir, stem)
         paths = generate_all_plots(rows, summary, plot_dir, grid=args.grid)
         print_results_audit(rows, summary)
-        print(f"Plots: {plot_dir}")
+        print(f"Metric plots: {plot_dir}")
         for path in paths:
             print(f"  {path}")
 
-    if args.plot_detections or args.diagnostics_only:
+    if args.plot or args.plot_detections or args.diagnostics_only:
         from changept_detection.experiments.diagnostics import generate_detection_diagnostic_plots
 
-        diag_dir = output_dir / "plots" / stem / "detections"
+        diag_dir = plots_detections_dir(output_dir, stem)
         _, diag_paths = generate_detection_diagnostic_plots(
             experiments=args.experiments,
             grid=args.grid,
@@ -256,6 +306,12 @@ def main(argv: list[str] | None = None) -> None:
             null_seeds=args.null_seeds,
             false_alarm_quantile=args.false_alarm_quantile,
         )
-        print(f"Detection diagnostics: {diag_dir}")
+        print(f"Detection plots: {diag_dir}")
         for path in diag_paths:
             print(f"  {path}")
+
+    print_output_tree(output_dir, stem)
+
+
+if __name__ == "__main__":
+    main()
