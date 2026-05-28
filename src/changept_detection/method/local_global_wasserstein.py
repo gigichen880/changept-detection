@@ -25,6 +25,7 @@ from changept_detection.experiments.spec import PROPOSED_ABLATIONS
 from changept_detection.method.global_refinement import (
     confirmed_from_retention_counts,
     filter_by_persistence,
+    global_segmentation_score,
     greedy_global_refine,
     increment_retention_counts,
     merge_nearby,
@@ -67,6 +68,34 @@ METRIC_TO_DISTANCE: dict[str, str] = {
 
 def _metric_to_distance(metric: str) -> str:
     return METRIC_TO_DISTANCE.get(metric, "sliced")
+
+
+def alert_time_to_boundary(alert_t: int, window: int) -> int:
+    """Map alert endpoint t to changepoint at the left edge of the current window."""
+    return max(0, alert_t - window)
+
+
+def build_boundary_evidence_scores(
+    alert_scores: np.ndarray,
+    shift_scores: np.ndarray,
+    window: int,
+    include_shift: bool = True,
+) -> np.ndarray:
+    """Max alert/shift evidence attributed to each boundary index tau."""
+    n = len(alert_scores)
+    boundary_scores = np.full(n, np.nan)
+    for t in range(2 * window, n):
+        tau = alert_time_to_boundary(t, window)
+        for score in (alert_scores[t], shift_scores[t] if include_shift else np.nan):
+            if np.isfinite(score):
+                prev = boundary_scores[tau]
+                if not np.isfinite(prev) or score > prev:
+                    boundary_scores[tau] = score
+    return boundary_scores
+
+
+def localize_alert_times(alert_times: list[int], window: int) -> list[int]:
+    return sorted(set(alert_time_to_boundary(t, window) for t in alert_times))
 
 
 @dataclass
@@ -233,6 +262,7 @@ class LocalGlobalWassersteinDetector:
         posterior_th = float(posterior_th) if posterior_th is not None else np.inf
 
         candidate_boundaries: list[int] = []
+        alert_candidates: list[int] = []
         for t in range(2 * w, n):
             a_t = alert_scores[t]
             b_t = shift_scores[t]
@@ -248,8 +278,10 @@ class LocalGlobalWassersteinDetector:
             else:
                 is_candidate = is_local or is_posterior
 
+            boundary_t = alert_time_to_boundary(t, w)
             log_row = {
                 "t": t,
+                "boundary_t": boundary_t,
                 "alert_score": float(a_t) if np.isfinite(a_t) else None,
                 "posterior_shift_score": float(b_t) if np.isfinite(b_t) else None,
                 "regime_posterior": regime_posteriors[t].copy() if self.use_prototypes else None,
@@ -261,25 +293,45 @@ class LocalGlobalWassersteinDetector:
                 "is_confirmed": False,
             }
             if is_candidate:
-                candidate_boundaries.append(t)
+                alert_candidates.append(t)
+                candidate_boundaries.append(boundary_t)
             self._logs.append(log_row)
 
         candidate_boundaries = sorted(set(candidate_boundaries))
+        boundary_evidence = build_boundary_evidence_scores(
+            alert_scores,
+            shift_scores,
+            w,
+            include_shift=self.use_posterior_trigger,
+        )
 
         if not self.use_global:
-            peaks = select_peaks(alert_scores, threshold=local_th, min_distance=self.merge_tolerance)
+            peaks = select_peaks(boundary_evidence, threshold=local_th, min_distance=self.merge_tolerance)
             if self.use_posterior_trigger:
-                post_peaks = select_peaks(shift_scores, threshold=posterior_th, min_distance=self.merge_tolerance)
+                post_peaks = select_peaks(
+                    build_boundary_evidence_scores(
+                        np.full(n, np.nan),
+                        shift_scores,
+                        w,
+                        include_shift=True,
+                    ),
+                    threshold=posterior_th,
+                    min_distance=self.merge_tolerance,
+                )
                 peaks = sorted(set(peaks) | set(post_peaks))
             global_retained = peaks if peaks else candidate_boundaries
-            confirmed = filter_by_persistence(global_retained, alert_scores, local_th, self.persistence)
+            confirmed = filter_by_persistence(global_retained, boundary_evidence, local_th, self.persistence)
         else:
             global_retained: list[int] = []
             step = max(1, w // 2)
             start_t = min(n - 1, 2 * w + self.refinement_horizon)
             retention_counts: dict[int, int] = {}
+            n_refine_steps = max(1, len(range(start_t, n, step)))
+            required_persistence = min(self.persistence, n_refine_steps)
             for t in range(start_t, n, step):
-                horizon_cands = [c for c in candidate_boundaries if t - self.refinement_horizon <= c <= t]
+                lo_b = max(0, t - self.refinement_horizon - w)
+                hi_b = max(0, t - w)
+                horizon_cands = [c for c in candidate_boundaries if lo_b <= c <= hi_b]
                 if not horizon_cands:
                     continue
                 retained = greedy_global_refine(
@@ -289,7 +341,7 @@ class LocalGlobalWassersteinDetector:
                     self.refinement_horizon,
                     w,
                     self._distance_fn,
-                    alert_scores,
+                    boundary_evidence,
                     boundary_penalty=self.boundary_penalty,
                     short_segment_penalty=self.short_segment_penalty,
                     min_segment_length=self.min_segment_length,
@@ -301,16 +353,63 @@ class LocalGlobalWassersteinDetector:
                     retention_counts,
                     retained,
                     self.merge_tolerance,
-                    alert_scores,
+                    boundary_evidence,
                 )
                 self._maybe_update_prototypes(data, t)
-            global_retained = merge_nearby(global_retained, alert_scores, self.merge_tolerance)
+            global_retained = merge_nearby(global_retained, boundary_evidence, self.merge_tolerance)
             self._retention_counts = retention_counts
-            confirmed = confirmed_from_retention_counts(retention_counts, self.persistence)
+            confirmed = confirmed_from_retention_counts(retention_counts, required_persistence)
             if not confirmed and global_retained:
-                confirmed = filter_by_persistence(global_retained, alert_scores, local_th, self.persistence)
+                confirmed = filter_by_persistence(
+                    global_retained, boundary_evidence, local_th, max(1, required_persistence - 1)
+                )
+            if not global_retained and candidate_boundaries:
+                above = [c for c in candidate_boundaries if np.isfinite(boundary_evidence[c]) and boundary_evidence[c] >= local_th]
+                if above:
+                    lo_full = 2 * w
+                    hi_full = n
+                    empty_score = global_segmentation_score(
+                        data,
+                        lo_full,
+                        hi_full,
+                        [],
+                        w,
+                        self._distance_fn,
+                        self.boundary_penalty,
+                        self.short_segment_penalty,
+                        self.min_segment_length,
+                    )
+                    best_c = max(
+                        above,
+                        key=lambda c: global_segmentation_score(
+                            data,
+                            lo_full,
+                            hi_full,
+                            [c],
+                            w,
+                            self._distance_fn,
+                            self.boundary_penalty,
+                            self.short_segment_penalty,
+                            self.min_segment_length,
+                        ),
+                    )
+                    best_score = global_segmentation_score(
+                        data,
+                        lo_full,
+                        hi_full,
+                        [best_c],
+                        w,
+                        self._distance_fn,
+                        self.boundary_penalty,
+                        self.short_segment_penalty,
+                        self.min_segment_length,
+                    )
+                    if best_c is not None and best_score > empty_score:
+                        global_retained = [best_c]
+            if not confirmed and global_retained:
+                confirmed = merge_nearby(global_retained, boundary_evidence, self.merge_tolerance)
 
-        confirmed = merge_nearby(confirmed, alert_scores, self.merge_tolerance)
+        confirmed = merge_nearby(confirmed, boundary_evidence, self.merge_tolerance)
 
         confirmed_labels: dict[int, int] = {}
         for tau in confirmed:
@@ -325,15 +424,17 @@ class LocalGlobalWassersteinDetector:
         retained_set = set(global_retained)
         confirmed_set = set(confirmed)
         for row in self._logs:
-            t = row["t"]
-            row["is_retained_by_global"] = t in retained_set
-            row["is_confirmed"] = t in confirmed_set
+            boundary_t = row["boundary_t"]
+            row["is_retained_by_global"] = boundary_t in retained_set
+            row["is_confirmed"] = boundary_t in confirmed_set
 
         return {
             "alert_scores": alert_scores,
             "posterior_shift_scores": shift_scores,
+            "boundary_evidence_scores": boundary_evidence,
             "regime_posteriors": regime_posteriors,
             "regime_labels": regime_labels,
+            "alert_candidate_times": sorted(set(alert_candidates)),
             "candidate_boundaries": candidate_boundaries,
             "global_retained_boundaries": sorted(set(global_retained)),
             "confirmed_boundaries": confirmed,
@@ -418,7 +519,7 @@ def run_proposed(key: str, x: np.ndarray, **kwargs: Any) -> DetectionResult:
         posterior_threshold=float(posterior_th) if posterior_th is not None else None,
         boundary_penalty=float(kwargs.get("penalty", 1.0)),
         short_segment_penalty=float(kwargs.get("short_segment_penalty", 1.0)),
-        min_segment_length=int(kwargs.get("min_seg_len", window)),
+        min_segment_length=int(kwargs.get("min_seg_len", max(10, window // 2))),
         temperature=float(kwargs.get("temperature", 1.0)),
         persistence=persistence,
         merge_tolerance=int(kwargs.get("min_distance", window // 2)),

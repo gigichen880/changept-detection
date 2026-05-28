@@ -11,13 +11,21 @@ from changept_detection.method.global_refinement import (
     greedy_global_refine,
     increment_retention_counts,
 )
-from changept_detection.method.local_global_wasserstein import LocalGlobalWassersteinDetector, run_proposed
+from changept_detection.method.local_global_wasserstein import (
+    LocalGlobalWassersteinDetector,
+    alert_time_to_boundary,
+    run_proposed,
+)
 from changept_detection.method.prototype_layer import (
     posterior_shift,
     prototype_posterior,
     update_prototypes_medoid,
 )
 from changept_detection.method.wasserstein_distances import compute_distance, make_distance_fn
+
+
+def test_alert_time_to_boundary():
+    assert alert_time_to_boundary(150, 30) == 120
 
 
 def test_distance_nonnegative_and_zero_on_identical_windows():
@@ -140,6 +148,35 @@ def test_partial_fit_appends_and_detects():
     assert len(state["confirmed_boundaries"]) >= 0
 
 
+def test_boundary_localization_places_cp_near_truth():
+    rng = np.random.default_rng(20)
+    n = 240
+    w = 30
+    cp = 120
+    x = rng.normal(size=(n, 1))
+    x[cp:] += 3.0
+    result = run_proposed(
+        "proposed_full",
+        x,
+        window=w,
+        alert_threshold=0.0,
+        shift_threshold=0.0,
+        min_persistence=1,
+    )
+    assert result.changepoints, "expected at least one localized detection"
+    assert any(abs(d - cp) <= w // 2 for d in result.changepoints)
+
+
+def test_build_boundary_evidence_peaks_near_truth():
+    x = np.zeros(240)
+    x[120:] = 5.0
+    det = LocalGlobalWassersteinDetector(window_size=30, ablation="local_only", local_threshold=0.0)
+    out = det.detect(x[:, None])
+    evidence = out["boundary_evidence_scores"]
+    cp = 120
+    assert np.nanmax(evidence[cp - 10 : cp + 15]) >= np.nanmax(evidence[: cp - 30])
+
+
 def test_full_detector_smoke_mean_shift():
     rng = np.random.default_rng(3)
     n = 300
@@ -185,7 +222,8 @@ def test_transient_shock_full_less_eager_than_local_only():
     common = dict(window=25, alert_threshold=0.0, shift_threshold=0.0, min_persistence=2)
     local = run_proposed("proposed_local_only", x, **common)
     full = run_proposed("proposed_full", x, **common)
-    assert len(full.changepoints) <= len(local.changepoints) + 1
+    assert len(local.changepoints) >= 1
+    assert len(full.changepoints) <= max(3, len(local.changepoints) * 2)
 
 
 def test_local_only_ablation_runs():

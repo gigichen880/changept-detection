@@ -40,7 +40,8 @@ def global_segmentation_score(
     segments = segment_bounds(lo, hi, boundaries)
     if any(b - a < 1 for a, b in segments):
         return -np.inf
-    if any(b - a < min_segment_length for a, b in segments):
+    effective_min = min(min_segment_length, max(5, (hi - lo) // 4))
+    if any(b - a < effective_min for a, b in segments):
         return -np.inf
 
     separation = 0.0
@@ -53,7 +54,7 @@ def global_segmentation_score(
 
     score = separation
     score -= boundary_penalty * len(boundaries)
-    score -= short_segment_penalty * short_segment_cost(segments, min_segment_length)
+    score -= short_segment_penalty * short_segment_cost(segments, effective_min)
     return float(score)
 
 
@@ -74,6 +75,8 @@ def greedy_global_refine(
     lo = max(window, horizon_end - horizon)
     hi = horizon_end
     merge_tolerance = merge_tolerance or max(window // 2, 1)
+    span = max(hi - lo, 1)
+    min_segment_length = min(min_segment_length, max(5, span // 4))
 
     cand = sorted({c for c in candidates if lo <= c <= hi})
     if not cand:

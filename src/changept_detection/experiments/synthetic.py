@@ -631,7 +631,7 @@ def baseline_kwargs(key: str, case: SyntheticCase, window: int, n_bkps: int | No
             "metric": metric,
             "horizon": max(2 * window, 80),
             "n_prototypes": min(4, max(2, n_proto)),
-            "penalty": 1.0,
+            "penalty": 0.5,
             "temperature": 1.0,
         }
     if key == "sinkhorn":
@@ -655,6 +655,7 @@ def run_case(
     window: int | None = None,
     n_bkps: int | None = None,
     calibration: CalibratedThresholds | None = None,
+    progress: Any | None = None,
 ) -> list[ExperimentResult]:
     if baselines is None:
         baselines = BASELINE_SETS[case.experiment]
@@ -663,6 +664,8 @@ def run_case(
     tolerance = detection_tolerance(window)
     results = []
     for key in baselines:
+        if progress is not None:
+            progress.set_postfix(experiment=case.experiment, method=key, refresh=False)
         kwargs = baseline_kwargs(key, case, window=window, n_bkps=n_bkps)
         if calibration is not None:
             cfg = calibration_config_key(case, window)
@@ -671,7 +674,9 @@ def run_case(
                 kwargs["threshold"] = th
                 if key.startswith("proposed"):
                     kwargs["alert_threshold"] = th
-                    kwargs["shift_threshold"] = th
+                    shift_th = calibration.get(cfg, f"{key}_shift")
+                    if shift_th is not None and np.isfinite(shift_th):
+                        kwargs["shift_threshold"] = shift_th
         result = run_baseline(key, case.x, **kwargs)
         metrics = with_localization_alias(
             detection_metrics(case.changepoints, result.changepoints, tolerance=tolerance)
@@ -699,6 +704,8 @@ def run_case(
                 metadata={k: v for k, v in result.metadata.items() if k != "resource"},
             )
         )
+        if progress is not None:
+            progress.update(1)
     if case.experiment == "A_regime" and case.regime_labels is not None:
         k_true = len(np.unique(case.regime_labels))
         centers, labels = cluster_rolling_windows(case.x, window=window, n_clusters=k_true)
@@ -760,6 +767,19 @@ def make_cases(
     return cases
 
 
+def _count_suite_steps(
+    experiments: list[str],
+    grid: str,
+    seeds: int | list[int],
+    baselines: list[str] | None,
+) -> int:
+    total = 0
+    for experiment in experiments:
+        methods = baselines or BASELINE_SETS[experiment]
+        total += len(make_cases(experiment, grid=grid, seeds=seeds)) * len(methods)
+    return total
+
+
 def run_synthetic_suite(
     experiments: list[str] | None = None,
     grid: str = "quick",
@@ -769,31 +789,59 @@ def run_synthetic_suite(
     calibrate: bool = True,
     null_seeds: int = 15,
     false_alarm_quantile: float = 0.95,
+    show_progress: bool = True,
 ) -> list[ExperimentResult]:
     experiments = experiments or list(BASELINE_SETS)
     all_results: list[ExperimentResult] = []
-    for experiment in experiments:
-        methods = baselines or BASELINE_SETS[experiment]
-        cases = make_cases(experiment, grid=grid, seeds=seeds)
-        calibration_cache: dict[tuple[Any, ...], CalibratedThresholds] = {}
-        for case in cases:
-            calibration: CalibratedThresholds | None = None
-            if calibrate:
-                w = resolve_window(case, window or max(20, min(80, len(case.x) // 8)))
-                cfg = calibration_config_key(case, w)
-                if cfg not in calibration_cache:
-                    null_series = generate_null_series(case, n_null=null_seeds)
-                    kwargs_map = {
-                        m: baseline_kwargs(m, case, window=w, n_bkps=len(case.changepoints))
-                        for m in methods
-                    }
-                    calibration_cache[cfg] = calibrate_for_case(
-                        case, methods, null_series, kwargs_map, false_alarm_quantile=false_alarm_quantile
+    total_steps = _count_suite_steps(experiments, grid, seeds, baselines)
+
+    progress = None
+    if show_progress and total_steps > 0:
+        try:
+            from tqdm import tqdm
+
+            progress = tqdm(total=total_steps, desc="Set A experiments", unit="run", dynamic_ncols=True)
+        except ImportError:
+            progress = None
+
+    try:
+        for experiment in experiments:
+            methods = baselines or BASELINE_SETS[experiment]
+            cases = make_cases(experiment, grid=grid, seeds=seeds)
+            calibration_cache: dict[tuple[Any, ...], CalibratedThresholds] = {}
+            for case in cases:
+                calibration: CalibratedThresholds | None = None
+                if calibrate:
+                    w = resolve_window(case, window or max(20, min(80, len(case.x) // 8)))
+                    cfg = calibration_config_key(case, w)
+                    if cfg not in calibration_cache:
+                        if progress is not None:
+                            progress.set_description(f"Calibrating {experiment}")
+                            progress.set_postfix(case=case.name, refresh=False)
+                        null_series = generate_null_series(case, n_null=null_seeds)
+                        kwargs_map = {
+                            m: baseline_kwargs(m, case, window=w, n_bkps=len(case.changepoints))
+                            for m in methods
+                        }
+                        calibration_cache[cfg] = calibrate_for_case(
+                            case, methods, null_series, kwargs_map, false_alarm_quantile=false_alarm_quantile
+                        )
+                    calibration = calibration_cache[cfg]
+                if progress is not None:
+                    progress.set_description(f"Running {experiment}")
+                    progress.set_postfix(case=case.name, refresh=False)
+                all_results.extend(
+                    run_case(
+                        case,
+                        baselines=methods,
+                        window=window,
+                        calibration=calibration,
+                        progress=progress,
                     )
-                calibration = calibration_cache[cfg]
-            all_results.extend(
-                run_case(case, baselines=methods, window=window, calibration=calibration)
-            )
+                )
+    finally:
+        if progress is not None:
+            progress.close()
     return all_results
 
 

@@ -80,6 +80,36 @@ def calibrate_method_threshold(
     return float(np.quantile(max_scores, false_alarm_quantile)), max_scores
 
 
+def calibrate_proposed_shift_threshold(
+    method: str,
+    null_series: list[np.ndarray],
+    run_kwargs: dict[str, Any],
+    false_alarm_quantile: float = 0.95,
+) -> tuple[float, list[float]]:
+    """Calibrate posterior-shift threshold separately from local alert scores."""
+    from changept_detection.method.proposed import run_proposed
+
+    max_shifts: list[float] = []
+    for x in null_series:
+        kwargs = dict(run_kwargs)
+        kwargs.pop("shift_threshold", None)
+        kwargs["alert_threshold"] = 1e12
+        kwargs["threshold"] = 1e12
+        result = run_proposed(method, x, **kwargs)
+        if result.metadata.get("unavailable"):
+            return float("nan"), []
+        shifts = result.metadata.get("posterior_shift_scores")
+        if shifts is None:
+            continue
+        finite = np.asarray(shifts, dtype=float)
+        finite = finite[np.isfinite(finite)]
+        if len(finite):
+            max_shifts.append(float(np.max(finite)))
+    if not max_shifts:
+        return float("nan"), []
+    return float(np.quantile(max_shifts, false_alarm_quantile)), max_shifts
+
+
 def calibrate_for_case(
     case: Any,
     methods: list[str],
@@ -110,6 +140,16 @@ def calibrate_for_case(
                 "null_max_scores": scores,
                 "threshold": th,
             }
+        if method.startswith("proposed"):
+            shift_th, shift_scores = calibrate_proposed_shift_threshold(
+                method, null_series, kwargs, false_alarm_quantile=false_alarm_quantile
+            )
+            if np.isfinite(shift_th):
+                out.thresholds[(*config_key, f"{method}_shift")] = shift_th
+                out.metadata[str((*config_key, f"{method}_shift"))] = {
+                    "null_max_shift_scores": shift_scores,
+                    "threshold": shift_th,
+                }
     return out
 
 

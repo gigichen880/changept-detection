@@ -51,6 +51,9 @@ PYTHONPATH=src python -m changept_detection \
 | `--grid` | `quick` or `full` | Smoke vs full difficulty sweep |
 | `--seeds` | `5` | Random seeds per DGP config |
 | `--plot-only` | `seta_quick_A1-A7` | Replot existing results stem |
+| `--plot-detections` | | True vs detected CP timelines per experiment |
+| `--diagnostics-only` | | Skip suite; only run detection diagnostics |
+| `--no-progress` | | Disable tqdm progress bar |
 
 Output stem format: `seta_{grid}_{A1-A2-…}.csv` under `results/` (gitignored).
 

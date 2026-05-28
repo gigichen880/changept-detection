@@ -91,6 +91,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=0.95,
         help="Quantile of null max-scores for threshold (~5%% null FP rate at 0.95).",
     )
+    parser.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="Disable the tqdm progress bar during experiment runs.",
+    )
+    parser.add_argument(
+        "--plot-detections",
+        action="store_true",
+        help="Generate true-vs-detected changepoint timeline plots (representative case per experiment).",
+    )
+    parser.add_argument(
+        "--diagnostics-only",
+        action="store_true",
+        help="Skip experiment suite; only run detection timeline diagnostics.",
+    )
     return parser.parse_args(argv)
 
 
@@ -180,7 +195,10 @@ def main(argv: list[str] | None = None) -> None:
     output_dir = Path(args.output_dir)
     stem = result_stem(args.grid, args.experiments)
 
-    if args.plot_only:
+    if args.diagnostics_only:
+        rows = []
+        summary = []
+    elif args.plot_only:
         stem = args.plot_only
         rows = load_rows_from_output(output_dir, stem)
         summary = summarize(rows)
@@ -194,6 +212,7 @@ def main(argv: list[str] | None = None) -> None:
             calibrate=not args.no_calibrate,
             null_seeds=args.null_seeds,
             false_alarm_quantile=args.false_alarm_quantile,
+            show_progress=not args.no_progress,
         )
         rows = [flatten_result(result) for result in results]
         summary = summarize(rows)
@@ -222,4 +241,21 @@ def main(argv: list[str] | None = None) -> None:
         print_results_audit(rows, summary)
         print(f"Plots: {plot_dir}")
         for path in paths:
+            print(f"  {path}")
+
+    if args.plot_detections or args.diagnostics_only:
+        from changept_detection.experiments.diagnostics import generate_detection_diagnostic_plots
+
+        diag_dir = output_dir / "plots" / stem / "detections"
+        _, diag_paths = generate_detection_diagnostic_plots(
+            experiments=args.experiments,
+            grid=args.grid,
+            seed=0,
+            plot_dir=diag_dir,
+            calibrate=not args.no_calibrate,
+            null_seeds=args.null_seeds,
+            false_alarm_quantile=args.false_alarm_quantile,
+        )
+        print(f"Detection diagnostics: {diag_dir}")
+        for path in diag_paths:
             print(f"  {path}")
