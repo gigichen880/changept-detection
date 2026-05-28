@@ -1,7 +1,7 @@
 """
 Synthetic data generators and experiment orchestration for docs/experiment_plan.md Set A.
 
-Experiment ids S0-S7 map to plan sections A1-A7 (+ recurring-regime labeling as S7).
+Experiment ids match docs/experiment_plan.md Set A: A1–A7 plus A_regime extension.
 Method lists and metrics are defined in ``experiments.spec``.
 """
 
@@ -101,7 +101,7 @@ def apply_ar1(x: np.ndarray, phi: float, rng: np.random.Generator) -> np.ndarray
     return y
 
 
-def generate_s0(
+def generate_a1(
     seed: int = 0,
     n_per_segment: int = 250,
     d: int = 5,
@@ -116,7 +116,7 @@ def generate_s0(
     x2 = rng.normal(loc=mu2, scale=volatility_ratio, size=(n_per_segment, d))
     x = np.vstack([x1, x2])
     return SyntheticCase(
-        "S0",
+        "A1",
         "gaussian_mean_variance",
         x,
         [n_per_segment],
@@ -130,7 +130,7 @@ def generate_s0(
     )
 
 
-def generate_s1(
+def generate_a2(
     seed: int = 0,
     n_per_segment: int = 250,
     nu: float = 6,
@@ -160,7 +160,7 @@ def generate_s1(
         x[:, 0] = eps / (np.std(eps) + 1e-12)
     cps = [n_per_segment * i for i in range(1, n_segments)]
     return SyntheticCase(
-        "S1",
+        "A2",
         "variance_matched_tail_shift",
         x,
         cps,
@@ -187,7 +187,7 @@ def sample_mixture(
     return rng.normal(means, sigma, size=n)
 
 
-def generate_s2(
+def generate_a3(
     seed: int = 0,
     n_per_segment: int = 250,
     delta: float = 0.1,
@@ -222,7 +222,7 @@ def generate_s2(
         for start in range(0, len(x), block):
             x[start : start + block] += rng.normal(0.0, 0.2)
     return SyntheticCase(
-        "S2",
+        "A3",
         "scenario_mixture_weight_shift",
         x,
         [n_per_segment],
@@ -238,7 +238,7 @@ def generate_s2(
     )
 
 
-def generate_s3(
+def generate_a4(
     seed: int = 0,
     n_per_segment: int = 250,
     d: int = 20,
@@ -250,7 +250,7 @@ def generate_s3(
     x1 = rng.multivariate_normal(np.zeros(d), equicorrelation(d, rho1), size=n_per_segment)
     x2 = rng.multivariate_normal(np.zeros(d), equicorrelation(d, rho2), size=n_per_segment)
     return SyntheticCase(
-        "S3",
+        "A4",
         "fixed_marginal_correlation_crisis",
         np.vstack([x1, x2]),
         [n_per_segment],
@@ -264,7 +264,7 @@ def generate_s3(
     )
 
 
-def generate_s4(
+def generate_a5(
     seed: int = 0,
     n_per_segment: int = 250,
     d: int = 50,
@@ -280,7 +280,7 @@ def generate_s4(
     x1 = rng.normal(0.0, 1.0, size=(n_per_segment, d))
     x2 = rng.multivariate_normal(np.zeros(d), shock_cov, size=n_per_segment)
     return SyntheticCase(
-        "S4",
+        "A5",
         "low_rank_factor_shock",
         np.vstack([x1, x2]),
         [n_per_segment],
@@ -295,7 +295,7 @@ def generate_s4(
     )
 
 
-def generate_s5(
+def generate_a6(
     seed: int = 0,
     n_before: int = 250,
     shock_length: int = 5,
@@ -327,7 +327,7 @@ def generate_s5(
         cps = [n_before, n_before + shock_length]
         name = "transient_shock"
     return SyntheticCase(
-        "S5",
+        "A6",
         name,
         x,
         cps,
@@ -343,7 +343,7 @@ def generate_s5(
     )
 
 
-def generate_s6(
+def generate_a7(
     seed: int = 0,
     n_per_segment: int = 250,
     shift_family: str = "tail",
@@ -353,17 +353,17 @@ def generate_s6(
 ) -> SyntheticCase:
     if shift_family == "correlation":
         strength = {"weak": 0.05, "medium": 0.2, "strong": 0.4}[signal_strength]
-        case = generate_s3(seed=seed, n_per_segment=n_per_segment, d=20, rho1=0.2, delta_rho=strength)
+        case = generate_a4(seed=seed, n_per_segment=n_per_segment, d=20, rho1=0.2, delta_rho=strength)
     elif shift_family == "factor":
         strength = {"weak": 0.1, "medium": 0.5, "strong": 1.0}[signal_strength]
-        case = generate_s4(seed=seed, n_per_segment=n_per_segment, d=30, epsilon=strength)
+        case = generate_a5(seed=seed, n_per_segment=n_per_segment, d=30, epsilon=strength)
     elif shift_family == "mixture":
         strength = {"weak": 0.05, "medium": 0.1, "strong": 0.3}[signal_strength]
-        case = generate_s2(seed=seed, n_per_segment=n_per_segment, delta=strength)
+        case = generate_a3(seed=seed, n_per_segment=n_per_segment, delta=strength)
     else:
         nu = {"weak": 20, "medium": 8, "strong": 4}[signal_strength]
-        case = generate_s1(seed=seed, n_per_segment=n_per_segment, nu=nu)
-    case.experiment = "S6"
+        case = generate_a2(seed=seed, n_per_segment=n_per_segment, nu=nu)
+    case.experiment = "A7"
     case.name = f"duplicate_peak_{shift_family}"
     noise_scale = {"low": 0.05, "medium": 0.15, "high": 0.35}[noise_level]
     rng = np.random.default_rng(seed + 99)
@@ -379,7 +379,7 @@ def generate_s6(
     return case
 
 
-def generate_s7(
+def generate_a_regime(
     seed: int = 0,
     regime_duration: int = 100,
     d: int = 5,
@@ -406,7 +406,7 @@ def generate_s7(
         labels.extend([label] * regime_duration)
     cps = [regime_duration * i for i in range(1, len(order))]
     return SyntheticCase(
-        "S7",
+        "A_regime",
         "recurring_regimes",
         np.vstack(segments),
         cps,
@@ -422,39 +422,39 @@ def generate_s7(
 
 
 GENERATORS = {
-    "S0": generate_s0,
-    "S1": generate_s1,
-    "S2": generate_s2,
-    "S3": generate_s3,
-    "S4": generate_s4,
-    "S5": generate_s5,
-    "S6": generate_s6,
-    "S7": generate_s7,
+    "A1": generate_a1,
+    "A2": generate_a2,
+    "A3": generate_a3,
+    "A4": generate_a4,
+    "A5": generate_a5,
+    "A6": generate_a6,
+    "A7": generate_a7,
+    "A_regime": generate_a_regime,
 }
 
 
 def quick_grid(experiment: str) -> list[dict[str, Any]]:
     """Small grids intended for smoke tests and local iteration."""
 
-    if experiment == "S0":
+    if experiment == "A1":
         return [{"mean_shift": s, "volatility_ratio": v, "d": 5, "n_per_segment": 120} for s, v in [(0.2, 1.25), (0.5, 1.5)]]
-    if experiment == "S1":
+    if experiment == "A2":
         return [{"nu": nu, "n_per_segment": 120} for nu in [6, 20]]
-    if experiment == "S2":
+    if experiment == "A3":
         return [
             {"delta": delta, "mode_separation": 3.0, "n_per_segment": 120, "demeaned": True}
             for delta in [0.05, 0.2]
         ]
-    if experiment == "S3":
+    if experiment == "A4":
         return [{"delta_rho": dr, "rho1": 0.2, "d": 10, "n_per_segment": 120} for dr in [0.1, 0.3]]
-    if experiment == "S4":
+    if experiment == "A5":
         return [{"epsilon": eps, "d": 20, "n_per_segment": 120} for eps in [0.1, 0.5]]
-    if experiment == "S5":
+    if experiment == "A6":
         return [
             {"shock_length": 5, "magnitude": "large", "persistent": False},
             {"shock_length": 50, "magnitude": "medium", "persistent": True},
         ]
-    if experiment == "S6":
+    if experiment == "A7":
         return [
             {
                 "shift_family": fam,
@@ -470,7 +470,7 @@ def quick_grid(experiment: str) -> list[dict[str, Any]]:
                 ["low", "high"],
             )
         ]
-    if experiment == "S7":
+    if experiment == "A_regime":
         return [{"regime_duration": 80, "d": 5, "similarity": "medium"}]
     raise KeyError(f"Unknown experiment: {experiment}")
 
@@ -478,7 +478,7 @@ def quick_grid(experiment: str) -> list[dict[str, Any]]:
 def full_grid(experiment: str) -> list[dict[str, Any]]:
     """Broader grids following the difficulty knobs in docs/experiment_plan.md."""
 
-    if experiment == "S0":
+    if experiment == "A1":
         return [
             {"mean_shift": s, "volatility_ratio": v, "n_per_segment": n, "d": d}
             for s, v, n, d in product(
@@ -488,12 +488,12 @@ def full_grid(experiment: str) -> list[dict[str, Any]]:
                 [1, 5, 20, 100],
             )
         ]
-    if experiment == "S1":
+    if experiment == "A2":
         return [
             {"nu": nu, "n_per_segment": n, "garch_noise": garch, "n_changepoints": cps}
             for nu, n, garch, cps in product([4, 6, 8, 12, 20, 50], [100, 250], ["none", "mild"], [1, 3])
         ]
-    if experiment == "S2":
+    if experiment == "A3":
         return [
             {
                 "delta": delta,
@@ -510,23 +510,23 @@ def full_grid(experiment: str) -> list[dict[str, Any]]:
                 [False, True],
             )
         ]
-    if experiment == "S3":
+    if experiment == "A4":
         return [
             {"delta_rho": dr, "rho1": rho, "d": d, "n_per_segment": n}
             for dr, rho, d, n in product([0.05, 0.1, 0.2, 0.4], [0.0, 0.2, 0.5], [5, 20, 50], [100, 250])
             if rho + dr < 0.95
         ]
-    if experiment == "S4":
+    if experiment == "A5":
         return [
             {"epsilon": eps, "d": d, "n_factors": k, "sparsity": sparsity, "n_per_segment": n}
             for eps, d, k, sparsity, n in product([0.05, 0.1, 0.2, 0.5, 1.0], [10, 50, 100], [1, 3], ["dense", "sector-sparse"], [100, 250])
         ]
-    if experiment == "S5":
+    if experiment == "A6":
         return [
             {"shock_length": m, "magnitude": mag, "shock_type": typ, "persistent": persistent}
             for m, mag, typ, persistent in product([1, 2, 5, 10, 20], ["small", "medium", "large"], ["mean", "volatility", "tail"], [False, True])
         ]
-    if experiment == "S6":
+    if experiment == "A7":
         return [
             {
                 "shift_family": fam,
@@ -543,7 +543,7 @@ def full_grid(experiment: str) -> list[dict[str, Any]]:
                 ["low", "medium", "high"],
             )
         ]
-    if experiment == "S7":
+    if experiment == "A_regime":
         return [
             {"regime_duration": duration, "d": 5, "similarity": similarity}
             for duration, similarity in product([50, 100, 250], ["easy", "medium", "hard"])
@@ -568,14 +568,14 @@ def generate_null_series(case: SyntheticCase, n_null: int, base_seed: int = 10_0
     for i in range(n_null):
         seed = base_seed + i
         rng = np.random.default_rng(seed)
-        if exp == "S0":
+        if exp == "A1":
             d = int(params.get("d", 1))
             x = rng.normal(0.0, 1.0, size=(length, d))
-        elif exp == "S1":
+        elif exp == "A2":
             nu = float(params.get("nu", 6))
             scale = np.sqrt((nu - 2.0) / nu)
             x = scale * rng.standard_t(df=nu, size=(length, 1))
-        elif exp == "S2":
+        elif exp == "A3":
             a = float(params.get("mode_separation", 3.0))
             use_demeaned = bool(params.get("demeaned", params.get("centered", False)))
             if use_demeaned:
@@ -583,19 +583,19 @@ def generate_null_series(case: SyntheticCase, n_null: int, base_seed: int = 10_0
                 x = np.where(z, -a, a)[:, None] + rng.normal(0.0, 1.0, size=(length, 1))
             else:
                 x = sample_mixture(rng, length, 0.5, a, 1.0)[:, None]
-        elif exp == "S3":
+        elif exp == "A4":
             d = int(params.get("d", 5))
             rho = float(params.get("rho1", 0.2))
             x = rng.multivariate_normal(np.zeros(d), equicorrelation(d, rho), size=length)
-        elif exp == "S4":
+        elif exp == "A5":
             d = int(params.get("d", 10))
             x = rng.normal(0.0, 1.0, size=(length, d))
-        elif exp == "S5":
+        elif exp == "A6":
             x = rng.normal(0.0, 1.0, size=(length, 1))
-        elif exp == "S6":
-            null_case = generate_s1(seed=seed, n_per_segment=length, nu=20)
+        elif exp == "A7":
+            null_case = generate_a2(seed=seed, n_per_segment=length, nu=20)
             x = null_case.x
-        elif exp == "S7":
+        elif exp == "A_regime":
             d = int(params.get("d", 5))
             x = rng.normal(0.0, 1.0, size=(length, d))
         else:
@@ -619,7 +619,7 @@ def baseline_kwargs(key: str, case: SyntheticCase, window: int, n_bkps: int | No
     if key == "gaussian_hmm":
         return {"n_states": min(4, max(2, len(case.changepoints) + 1)), "min_distance": window}
     if key.startswith("proposed"):
-        metric = "bures" if case.experiment in {"S3", "S4"} else "sliced_wasserstein"
+        metric = "bures" if case.experiment in {"A4", "A5"} else "sliced_wasserstein"
         if case.regime_labels is None:
             n_proto = 3
         else:
@@ -675,7 +675,7 @@ def run_case(
         )
         if not result.metadata.get("unavailable"):
             metrics.update(score_diagnostics(result))
-        if case.experiment == "S6":
+        if case.experiment == "A7":
             metrics.update(s6_metrics(case.changepoints, result.changepoints, window, metrics))
         if result.metadata.get("unavailable"):
             metrics = {**metrics, "unavailable": 1.0}
@@ -696,7 +696,7 @@ def run_case(
                 metadata={k: v for k, v in result.metadata.items() if k != "resource"},
             )
         )
-    if case.experiment == "S7" and case.regime_labels is not None:
+    if case.experiment == "A_regime" and case.regime_labels is not None:
         k_true = len(np.unique(case.regime_labels))
         centers, labels = cluster_rolling_windows(case.x, window=window, n_clusters=k_true)
         true_labels = case.regime_labels[centers - 1]
@@ -713,7 +713,7 @@ def run_case(
                     "key": "rolling_feature_kmeans",
                     "name": "K-means on rolling features",
                     "category": "Regime-label baseline",
-                    "source": "docs/experiment_plan.md S7 baseline",
+                    "source": "docs/experiment_plan.md A_regime baseline",
                     "url": "docs/experiment_plan.md",
                     "implementation": "KMeans on rolling mean/std/covariance features.",
                     "notes": "",

@@ -1,106 +1,96 @@
 # Change-Point Detection Experiment Framework
 
 Plan-aligned scaffold for **Set A synthetic changepoint detection**
-([`docs/experiment_plan.md`](docs/experiment_plan.md)). Baselines, null calibration,
-metrics, and plots are wired; the proposed local–global Wasserstein method is a
-**placeholder** until you plug in the real detector.
+([`docs/experiment_plan.md`](docs/experiment_plan.md)). Experiment ids **match the plan**
+(`A1`–`A7`). The proposed method is a **placeholder** until you plug in the real detector.
 
 ## Repository layout
 
 ```text
 changept-detection/
 ├── docs/
-│   ├── experiment_plan.md       # canonical experiment design (Set A/B/C)
+│   ├── experiment_plan.md       # canonical design (Sets A/B/C)
 │   ├── baseline_resources.md    # baseline citations
-│   └── deep-research-report.md  # background literature notes (not used by runner)
-├── requirements.txt             # numpy, scipy, sklearn, matplotlib
-├── requirements-optional.txt    # ruptures, POT, hmmlearn
+│   └── README.md                # doc index
+├── requirements.txt
+├── requirements-optional.txt
 └── src/changept_detection/
     ├── __main__.py              # python -m changept_detection
-    ├── baselines/
-    │   └── core.py              # detector registry + metrics (plan §2.3)
+    ├── baselines/core.py        # detector registry (plan §2.3)
     ├── experiments/
-    │   ├── spec.py              # S0–S7 ↔ plan A1–A7, method lists, primary metrics
+    │   ├── spec.py              # A1–A7, A_regime, baselines, grids, metrics
     │   ├── synthetic.py         # DGP generators + run_case
-    │   ├── calibration.py       # null-sequence thresholds (plan §3.1)
-    │   ├── metrics.py           # CP-F1, S6 duplicate metrics, score audit
-    │   ├── runner.py            # CLI entry
-    │   └── visualize.py         # bar charts, overview, audit prints
+    │   ├── calibration.py       # null-sequence thresholds (§3.1)
+    │   ├── metrics.py           # CP-F1, A7 duplicate metrics, score audit
+    │   ├── runner.py            # CLI
+    │   └── visualize.py
     └── method/
         ├── placeholder.py       # ← implement run_proposed() here
-        └── proposed.py          # stable re-export of placeholder
+        └── proposed.py          # re-export of placeholder
 ```
-
-Generated artifacts go to `results/` (gitignored). Do not commit CSV/JSON/plots.
 
 ## Quick start
 
-From the repo root:
-
 ```bash
-python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pip install -r requirements-optional.txt   # PELT, Sinkhorn, HMM baselines
+pip install -r requirements-optional.txt
 
 PYTHONPATH=src python -m changept_detection \
   --grid quick --seeds 2 --output-dir results --write-resources --plot
 ```
 
-### Common CLI flags
+### CLI
 
-| Flag | Purpose |
-|------|---------|
-| `--experiments S0 S3 S7` | Subset of Set A (default: all S0–S7) |
-| `--grid quick\|full` | Smoke grid vs full difficulty sweep |
-| `--seeds N` | Random seeds per parameter setting |
-| `--null-seeds N` | Null sequences for calibration (default 8) |
-| `--no-calibrate` | Legacy in-sample thresholds (not plan §3.1) |
-| `--plot-only STEM` | Replot from existing `results/STEM.{csv,json}` |
+| Flag | Example | Purpose |
+|------|---------|---------|
+| `--experiments` | `A1 A4 A_regime` | Subset (default: all Set A ids) |
+| `--grid` | `quick` or `full` | Smoke vs full difficulty sweep |
+| `--seeds` | `5` | Random seeds per DGP config |
+| `--plot-only` | `seta_quick_A1-A7` | Replot existing results stem |
 
-### Outputs
+Output stem format: `seta_{grid}_{A1-A2-…}.csv` under `results/` (gitignored).
 
-| File | Contents |
-|------|----------|
-| `results/synthetic_quick_S0-…-S7.csv` | Per-run metrics + calibration fields |
-| `results/synthetic_quick_…_summary.json` | Aggregated means per experiment × method |
-| `results/synthetic_quick_…_score_audit.csv` | Threshold vs max-score diagnostic |
-| `results/plots/synthetic_quick_…/` | Per-experiment bars, overview, proposed vs best |
+## Experiments (Set A)
+
+| Id | Plan section | Purpose |
+|----|--------------|---------|
+| **A1** | A1 | Mean/variance sanity check |
+| **A2** | A2 | Variance-matched tail shift |
+| **A3** | A3 | Scenario-mixture weight shift |
+| **A4** | A4 | Fixed-marginal correlation crisis |
+| **A5** | A5 | Low-rank factor shock |
+| **A6** | A6 | Transient vs persistent regime |
+| **A7** | A7 | Duplicate local peak suppression |
+| **A_regime** | §4.3 extension | Recurring-regime labeling (ARI/NMI) |
+
+`A_regime` is the only id that is **not** a numbered plan section — it tests prototype/regime
+metrics from §4.3. Sets **B** (B1–B3) and **C** (C1–C3) are in the plan but not implemented yet.
+
+## Grids
+
+Both grids vary DGP difficulty knobs; total work ≈ `(# configs) × seeds × methods`.
+
+**`--grid quick`** — smoke / dev (~29 configs across all experiments):
+
+| Id | # configs | Notes |
+|----|-----------|-------|
+| A1–A6 | 2 each | easy + harder corner |
+| A7 | 16 | shift family × strength × window × noise |
+| A_regime | 1 | fixed recurring-regime setting |
+
+**`--grid full`** — plan difficulty tables (`synthetic.full_grid()`):
+
+A1 **400**, A2 **48**, A3 **160**, A4 **72**, A5 **120**, A6 **90**, A7 **288**, A_regime **9**.
+
+Start with subsets: `--experiments A2 A3 --grid full --seeds 3`.
 
 ## Plug in the proposed method
 
-1. Edit `src/changept_detection/method/placeholder.py`.
-2. Replace `run_proposed()` (and `regime_labels_from_prototypes()` for S7 regime metrics).
-3. Return `DetectionResult(changepoints, scores, threshold, metadata)` from
-   `changept_detection.baselines.core`.
-4. Re-run the CLI — runner, calibration, and plots stay unchanged.
+Edit `src/changept_detection/method/placeholder.py` → replace `run_proposed()` (and
+`regime_labels_from_prototypes()` for `A_regime`). Return `DetectionResult` unchanged;
+re-run the CLI.
 
-Registered keys (plan §2.2): `proposed_local_only`, `proposed_local_persistence_proxy`,
-`proposed_local_global_no_proto`, `proposed_local_proto_no_global`, `proposed_full`.
+## Protocol
 
-## Set A experiment map
-
-| Id | Plan | Purpose |
-|----|------|---------|
-| S0 | A1 | Mean/variance sanity check |
-| S1 | A2 | Variance-matched tail shift |
-| S2 | A3 | Scenario-mixture weight shift |
-| S3 | A4 | Fixed-marginal correlation crisis |
-| S4 | A5 | Low-rank factor shock |
-| S5 | A6 | Transient vs persistent regime |
-| S6 | A7 | Duplicate local peak suppression |
-| S7 | — | Recurring-regime labeling (ARI/NMI) |
-
-Per-experiment baseline lists and primary metrics: `src/changept_detection/experiments/spec.py`.
-
-## Protocol notes
-
-- **Calibration** (plan §3.1): thresholds from matched no-change nulls, frozen before
-  evaluation. Tune via `--null-seeds` and `--false-alarm-quantile` (default 0.95).
-- **Detection tolerance** (plan §3.2): `|τ̂ − τ*| ≤ w/2` via `spec.detection_tolerance()`.
-- **Optional deps**: without `ruptures` / `POT` / `hmmlearn`, affected baselines appear as
-  `unavailable=1` rows; core window-scan methods still run.
-
-## Documentation
-
-- Experiment design: [`docs/experiment_plan.md`](docs/experiment_plan.md)
-- Baseline citations: [`docs/baseline_resources.md`](docs/baseline_resources.md)
+- **Calibration** (§3.1): null-sequence thresholds, frozen before evaluation (`--null-seeds`, default 8).
+- **Tolerance** (§3.2): `|τ̂ − τ*| ≤ w/2` via `spec.detection_tolerance()`.

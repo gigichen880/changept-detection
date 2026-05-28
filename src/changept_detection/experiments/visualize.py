@@ -9,11 +9,11 @@ import numpy as np
 
 from changept_detection.experiments.metrics import print_score_audit_table
 from changept_detection.experiments.spec import (
+    A_REGIME_LABEL_METRIC,
     EXPERIMENT_ORDER,
     EXPERIMENT_TITLES,
     PRIMARY_METRIC,
     PROPOSED_PRIMARY,
-    S7_REGIME_METRIC,
 )
 
 PROPOSED_METHOD = PROPOSED_PRIMARY
@@ -51,7 +51,6 @@ def aggregate_by_method(
 
 
 def print_results_audit(rows: list[dict[str, Any]], summary: list[dict[str, Any]]) -> None:
-    """Print sanity checks against experiment-plan expectations."""
     print("\n--- Results audit ---")
     unavailable = sorted({row["method"] for row in rows if float(row.get("unavailable", 0.0)) == 1.0})
     if unavailable:
@@ -78,34 +77,34 @@ def print_results_audit(rows: list[dict[str, Any]], summary: list[dict[str, Any]
         best_method = key_fn(others, key=others.get)
         return best_method, others[best_method]
 
-    p = proposed_metric("S0", "f1")
-    b, bv = best_other("S0", "f1")
-    print(f"S0 F1 — proposed: {p:.3f}, best baseline ({b}): {bv:.3f}")
+    p = proposed_metric("A1", "f1")
+    b, bv = best_other("A1", "f1")
+    print(f"A1 F1 — proposed: {p:.3f}, best baseline ({b}): {bv:.3f}")
 
-    coord = aggregate_by_method(rows, "S3", "f1").get("coordinate_w2t", float("nan"))
-    prop = proposed_metric("S3", "f1")
-    b, bv = best_other("S3", "f1")
+    coord = aggregate_by_method(rows, "A4", "f1").get("coordinate_w2t", float("nan"))
+    prop = proposed_metric("A4", "f1")
+    b, bv = best_other("A4", "f1")
     print(
-        f"S3 F1 — coordinate_w2t: {coord:.3f}, proposed: {prop:.3f}, "
+        f"A4 F1 — coordinate_w2t: {coord:.3f}, proposed: {prop:.3f}, "
         f"best baseline ({b}): {bv:.3f}"
     )
 
-    prop_rec = proposed_metric("S6", "event_recall")
-    prop_ndet = proposed_metric("S6", "mean_num_detections")
-    prop_dup = proposed_metric("S6", "duplicate_rate_conditional_on_hit")
+    prop_rec = proposed_metric("A7", "event_recall")
+    prop_ndet = proposed_metric("A7", "mean_num_detections")
+    prop_dup = proposed_metric("A7", "duplicate_rate_conditional_on_hit")
     print(
-        f"S6 — proposed: event_recall={prop_rec:.3f}, num_det={prop_ndet:.2f}, "
+        f"A7 — proposed: event_recall={prop_rec:.3f}, num_det={prop_ndet:.2f}, "
         f"dup_rate|hit={prop_dup:.3f}"
     )
 
-    prop_f1 = proposed_metric("S7", "f1")
-    b, bv = best_other("S7", "f1")
-    print(f"S7 boundary F1 — proposed: {prop_f1:.3f}, best baseline ({b}): {bv:.3f}")
-    prop_ari = proposed_metric("S7", "ari")
-    ari_scores = aggregate_by_method(rows, "S7", "ari")
+    prop_f1 = proposed_metric("A_regime", "f1")
+    b, bv = best_other("A_regime", "f1")
+    print(f"A_regime boundary F1 — proposed: {prop_f1:.3f}, best baseline ({b}): {bv:.3f}")
+    prop_ari = proposed_metric("A_regime", "ari")
+    ari_scores = aggregate_by_method(rows, "A_regime", "ari")
     if ari_scores:
         best_ari = max(ari_scores, key=ari_scores.get)
-        print(f"S7 regime ARI — proposed: {prop_ari:.3f}, best: {best_ari}={ari_scores[best_ari]:.3f}")
+        print(f"A_regime ARI — proposed: {prop_ari:.3f}, best: {best_ari}={ari_scores[best_ari]:.3f}")
 
     proposed_rows = [r for r in summary if r.get("method") == PROPOSED_METHOD and r.get("available_runs", 0)]
     if not proposed_rows:
@@ -161,7 +160,7 @@ def plot_single_experiment(
     fig, ax = plt.subplots(figsize=(9, 4.5))
     title = f"{EXPERIMENT_TITLES[experiment]} ({grid} grid)"
     _style_bar(ax, methods, values, metric_label, title)
-    if experiment == "S6":
+    if experiment == "A7":
         ax.invert_yaxis()
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -186,10 +185,10 @@ def plot_overview_grid(rows: list[dict[str, Any]], out_path: Path, grid: str) ->
         methods = sorted(scores, key=lambda m: scores[m], reverse=higher_better)
         values = [scores[m] for m in methods]
         _style_bar(ax, methods, values, metric_label.split("(")[0].strip(), experiment)
-        if experiment == "S6":
+        if experiment == "A7":
             ax.invert_yaxis()
 
-    fig.suptitle(f"Proposed vs baselines — Set A synthetic suite ({grid} grid)", fontsize=13, y=1.02)
+    fig.suptitle(f"Proposed vs baselines — Set A ({grid} grid)", fontsize=13, y=1.02)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -250,7 +249,7 @@ def plot_recall_precision_scatter(rows: list[dict[str, Any]], out_path: Path) ->
     plt = _require_matplotlib()
     fig, ax = plt.subplots(figsize=(7, 6))
     for row in _available_rows(rows):
-        if row.get("experiment") == "S7":
+        if row.get("experiment") == "A_regime":
             continue
         if "recall" not in row or "precision" not in row:
             continue
@@ -270,7 +269,7 @@ def plot_recall_precision_scatter(rows: list[dict[str, Any]], out_path: Path) ->
         ax.legend(by_label.values(), by_label.keys(), loc="lower left")
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
-    ax.set_title("Detection trade-off (S0–S6)")
+    ax.set_title("Detection trade-off (A1–A7)")
     ax.set_xlim(-0.05, 1.05)
     ax.set_ylim(-0.05, 1.05)
     ax.grid(alpha=0.25)
@@ -281,22 +280,22 @@ def plot_recall_precision_scatter(rows: list[dict[str, Any]], out_path: Path) ->
     return out_path
 
 
-def plot_s7_dual(rows: list[dict[str, Any]], out_path: Path, grid: str) -> Path:
+def plot_a_regime_dual(rows: list[dict[str, Any]], out_path: Path, grid: str) -> Path:
     plt = _require_matplotlib()
     fig, axes = plt.subplots(1, 2, figsize=(14, 4.5))
 
-    f1_scores = aggregate_by_method(rows, "S7", "f1")
+    f1_scores = aggregate_by_method(rows, "A_regime", "f1")
     if f1_scores:
         methods = sorted(f1_scores, key=lambda m: f1_scores[m], reverse=True)
-        _style_bar(axes[0], methods, [f1_scores[m] for m in methods], "Mean CP-F1", "S7 boundary detection")
+        _style_bar(axes[0], methods, [f1_scores[m] for m in methods], "Mean CP-F1", "A_regime boundary detection")
 
-    ari_label = S7_REGIME_METRIC[1]
-    ari_scores = aggregate_by_method(rows, "S7", "ari")
+    ari_label = A_REGIME_LABEL_METRIC[1]
+    ari_scores = aggregate_by_method(rows, "A_regime", "ari")
     if ari_scores:
         methods = sorted(ari_scores, key=lambda m: ari_scores[m], reverse=True)
-        _style_bar(axes[1], methods, [ari_scores[m] for m in methods], ari_label, "S7 regime labeling")
+        _style_bar(axes[1], methods, [ari_scores[m] for m in methods], ari_label, "A_regime regime labeling")
 
-    fig.suptitle(f"S7: recurring regimes ({grid} grid)", fontsize=11)
+    fig.suptitle(f"A_regime: recurring regimes ({grid} grid)", fontsize=11)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -316,11 +315,11 @@ def generate_all_plots(
         exp_rows = [r for r in rows if r.get("experiment") == experiment]
         if not exp_rows:
             continue
-        if experiment == "S7":
-            paths.append(plot_s7_dual(exp_rows, plot_dir / "S7.png", grid))
+        if experiment == "A_regime":
+            paths.append(plot_a_regime_dual(exp_rows, plot_dir / "A_regime.png", grid))
         else:
             paths.append(plot_single_experiment(exp_rows, experiment, plot_dir / f"{experiment}.png", grid))
-    paths.append(plot_overview_grid(rows, plot_dir / "overview_S0-S7.png", grid))
+    paths.append(plot_overview_grid(rows, plot_dir / "overview_set_a.png", grid))
     paths.append(plot_proposed_vs_best(rows, plot_dir / "proposed_vs_best.png", grid))
     paths.append(plot_recall_precision_scatter(rows, plot_dir / "recall_precision_scatter.png"))
     return paths

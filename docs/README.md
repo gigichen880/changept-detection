@@ -2,13 +2,17 @@
 
 | File | Purpose |
 |------|---------|
-| [`experiment_plan.md`](experiment_plan.md) | Canonical experiment design (Sets A/B/C), methods, metrics, calibration |
-| [`baseline_resources.md`](baseline_resources.md) | Paper/repo citations for each registered baseline |
-| [`deep-research-report.md`](deep-research-report.md) | Background CPD literature survey (reference only) |
+| [`experiment_plan.md`](experiment_plan.md) | Canonical design: Sets A/B/C, methods, metrics |
+| [`baseline_resources.md`](baseline_resources.md) | Citations for registered baselines |
+| [`deep-research-report.md`](deep-research-report.md) | Background CPD literature (reference only) |
 
-Implementation mapping for Set A synthetic runs:
+## Code mapping
 
-- Experiment ids **S0–S7** → plan sections **A1–A7** (+ S7 regime labeling)
-- Method lists → `src/changept_detection/experiments/spec.py`
-- Detectors → `src/changept_detection/baselines/core.py`
-- Proposed method slot → `src/changept_detection/method/placeholder.py`
+| Plan | Runner id | Module |
+|------|-----------|--------|
+| Set A §A1–A7 | `A1` … `A7` | `experiments/synthetic.py` generators |
+| §4.3 regime labels | `A_regime` | same + `method/placeholder.regime_labels_from_prototypes` |
+| Set B B1–B3 | — | not implemented |
+| Set C C1–C3 | — | not implemented |
+
+Spec (baselines, grids, metrics): `src/changept_detection/experiments/spec.py`

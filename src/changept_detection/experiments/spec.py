@@ -1,48 +1,78 @@
 """
 Experiment specification aligned with docs/experiment_plan.md.
 
-Set A synthetic experiments use ids S0–S7 (plan sections A1–A7 plus recurring-regime
-labeling as S7). Baseline pools follow §2.3; per-experiment lists add the detectors
-called out in each section's expected-outcome discussion.
+Experiment ids match the plan directly:
+  - A1–A7: Set A controlled synthetic sections
+  - A_regime: framework extension for recurring-regime labeling (plan §4.3 metrics)
+
+Sets B (B1–B3) and C (C1–C3) are documented in the plan but not implemented yet.
 """
 
 from __future__ import annotations
 
-# --- Set A: synthetic experiment registry (plan §Set A) ---
+# --- Set A experiment registry ---
 
-EXPERIMENT_ORDER = ["S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7"]
+EXPERIMENT_ORDER = ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A_regime"]
 
-PLAN_SECTION = {
-    "S0": "A1",
-    "S1": "A2",
-    "S2": "A3",
-    "S3": "A4",
-    "S4": "A5",
-    "S5": "A6",
-    "S6": "A7",
-    "S7": "A7+regime-labels",
+EXPERIMENTS: dict[str, dict[str, str]] = {
+    "A1": {"plan_set": "A", "title": "Mean/variance shift sanity check"},
+    "A2": {"plan_set": "A", "title": "Variance-matched tail shift"},
+    "A3": {"plan_set": "A", "title": "Scenario-mixture weight shift"},
+    "A4": {"plan_set": "A", "title": "Fixed-marginal correlation crisis"},
+    "A5": {"plan_set": "A", "title": "Low-rank factor shock"},
+    "A6": {"plan_set": "A", "title": "Transient shock vs persistent regime"},
+    "A7": {"plan_set": "A", "title": "Duplicate local peak suppression"},
+    "A_regime": {
+        "plan_set": "A+",
+        "title": "Recurring-regime labeling (§4.3 prototype / ARI-NMI metrics)",
+    },
 }
 
-EXPERIMENT_DESCRIPTIONS = {
-    "S0": "A1: mean/variance shift sanity check.",
-    "S1": "A2: variance-matched Student-t tail shift.",
-    "S2": "A3: scenario-mixture weight shift.",
-    "S3": "A4: fixed-marginal correlation crisis.",
-    "S4": "A5: low-rank factor covariance shock.",
-    "S5": "A6: transient shock vs persistent regime.",
-    "S6": "A7: duplicate local peak suppression.",
-    "S7": "Recurring-regime posterior / label interpretability.",
+PLANNED_NOT_IMPLEMENTED: dict[str, list[str]] = {
+    "Set B": ["B1 block-bootstrap splice", "B2 injected factor shock", "B3 scenario reweighting"],
+    "Set C": ["C1 ETF event windows", "C2 Fama-French / industry portfolios", "C3 vol surface (optional)"],
 }
+
+EXPERIMENT_DESCRIPTIONS = {eid: meta["title"] + "." for eid, meta in EXPERIMENTS.items()}
 
 EXPERIMENT_TITLES = {
-    "S0": "S0 (A1): mean / variance shifts",
-    "S1": "S1 (A2): variance-matched tail shift",
-    "S2": "S2 (A3): mixture weight shift",
-    "S3": "S3 (A4): correlation crisis (fixed marginals)",
-    "S4": "S4 (A5): low-rank factor shock",
-    "S5": "S5 (A6): transient vs persistent",
-    "S6": "S6 (A7): duplicate peak suppression",
-    "S7": "S7: recurring regime labels",
+    eid: f"{eid}: {meta['title'].split('(')[0].strip().lower()}" for eid, meta in EXPERIMENTS.items()
+}
+
+# Parameter grids (--grid quick | full). Counts = DGP configs before × seeds × methods.
+GRID_DESCRIPTIONS: dict[str, dict[str, str]] = {
+    "quick": {
+        "purpose": "Smoke tests and local iteration; 1–16 DGP configs per experiment.",
+        "cli": "--grid quick",
+        "approx_cases": "A1–A6: 2 each; A7: 16; A_regime: 1 (≈29 configs for all)",
+    },
+    "full": {
+        "purpose": "Cartesian sweeps over plan Set A difficulty knobs.",
+        "cli": "--grid full",
+        "approx_cases": "A1: 400; A2: 48; A3: 160; A4: 72; A5: 120; A6: 90; A7: 288; A_regime: 9",
+    },
+}
+
+QUICK_GRID_CASES: dict[str, int] = {
+    "A1": 2,
+    "A2": 2,
+    "A3": 2,
+    "A4": 2,
+    "A5": 2,
+    "A6": 2,
+    "A7": 16,
+    "A_regime": 1,
+}
+
+FULL_GRID_CASES: dict[str, int] = {
+    "A1": 400,
+    "A2": 48,
+    "A3": 160,
+    "A4": 72,
+    "A5": 120,
+    "A6": 90,
+    "A7": 288,
+    "A_regime": 9,
 }
 
 # --- Methods (plan §2.2–2.3) ---
@@ -61,7 +91,6 @@ PROPOSED_METHOD_KEYS = frozenset(
     set(PROPOSED_ABLATIONS) | {"proposed_local_global"}  # deprecated alias
 )
 
-# Compact baseline pool from plan §2.3
 PLAN_BASELINE_POOL = [
     "cusum_mean",
     "cusum_vol",
@@ -76,10 +105,8 @@ PLAN_BASELINE_POOL = [
     "gaussian_hmm",
 ]
 
-# Per-experiment method lists (plan section emphasis + §2.3 pool)
 BASELINE_SETS: dict[str, list[str]] = {
-    # A1: classical CPD should be strong; OT included for comparison
-    "S0": [
+    "A1": [
         "pelt_l2",
         "pelt_normal",
         "pelt_rbf",
@@ -92,8 +119,7 @@ BASELINE_SETS: dict[str, list[str]] = {
         PROPOSED_PRIMARY,
         "proposed_local_persistence_proxy",
     ],
-    # A2: variance-matched tails — variance monitors + distributional tests
-    "S1": [
+    "A2": [
         "ewma_vol",
         "cusum_vol",
         "ks",
@@ -104,8 +130,7 @@ BASELINE_SETS: dict[str, list[str]] = {
         "coordinate_w2_matched_filter",
         PROPOSED_PRIMARY,
     ],
-    # A3: scenario mixture reweighting
-    "S2": [
+    "A3": [
         "ks",
         "mmd",
         "energy",
@@ -114,8 +139,7 @@ BASELINE_SETS: dict[str, list[str]] = {
         "bocpd_gaussian",
         PROPOSED_PRIMARY,
     ],
-    # A4: joint dependence — coordinate OT should degrade; joint OT/kernel methods
-    "S3": [
+    "A4": [
         "coordinate_w2t",
         "ks",
         "pelt_l2",
@@ -128,8 +152,7 @@ BASELINE_SETS: dict[str, list[str]] = {
         PROPOSED_PRIMARY,
         "proposed_local_global_no_proto",
     ],
-    # A5: low-rank factor shock
-    "S4": [
+    "A5": [
         "pelt_rbf",
         "mmd",
         "sliced_wasserstein",
@@ -139,8 +162,7 @@ BASELINE_SETS: dict[str, list[str]] = {
         "bures",
         PROPOSED_PRIMARY,
     ],
-    # A6: transient vs persistent — local vs full proposed ablations
-    "S5": [
+    "A6": [
         "coordinate_w2_matched_filter",
         "mmd",
         "pelt_rbf",
@@ -151,16 +173,14 @@ BASELINE_SETS: dict[str, list[str]] = {
         "proposed_local_only",
         "proposed_local_persistence_proxy",
     ],
-    # A7 duplicate suppression
-    "S6": [
+    "A7": [
         "coordinate_w2_matched_filter",
         "mmd",
         "window_rbf",
         PROPOSED_PRIMARY,
         "proposed_local_persistence_proxy",
     ],
-    # Recurring regimes — online/regime baselines + proposed prototype layer
-    "S7": [
+    "A_regime": [
         "gaussian_hmm",
         "coordinate_w2_matched_filter",
         PROPOSED_PRIMARY,
@@ -168,22 +188,20 @@ BASELINE_SETS: dict[str, list[str]] = {
     ],
 }
 
-# --- Metrics (plan §4) ---
-
 PRIMARY_METRIC: dict[str, tuple[str, str]] = {
-    "S0": ("f1", "Mean CP-F1"),
-    "S1": ("f1", "Mean CP-F1"),
-    "S2": ("f1", "Mean CP-F1"),
-    "S3": ("f1", "Mean CP-F1"),
-    "S4": ("f1", "Mean CP-F1"),
-    "S5": ("f1", "Mean CP-F1"),
-    "S6": ("duplicate_rate", "False duplicate rate (lower is better)"),
-    "S7": ("f1", "Mean boundary CP-F1"),
+    "A1": ("f1", "Mean CP-F1"),
+    "A2": ("f1", "Mean CP-F1"),
+    "A3": ("f1", "Mean CP-F1"),
+    "A4": ("f1", "Mean CP-F1"),
+    "A5": ("f1", "Mean CP-F1"),
+    "A6": ("f1", "Mean CP-F1"),
+    "A7": ("duplicate_rate", "False duplicate rate (lower is better)"),
+    "A_regime": ("f1", "Mean boundary CP-F1"),
 }
 
-S7_REGIME_METRIC = ("ari", "Mean ARI (regime labeling)")
+A_REGIME_LABEL_METRIC = ("ari", "Mean ARI (regime labeling)")
 
-S6_SUPPLEMENTARY_METRICS = (
+A7_SUPPLEMENTARY_METRICS = (
     "mean_num_detections",
     "event_recall",
     "duplicate_rate_conditional_on_hit",

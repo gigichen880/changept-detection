@@ -1,4 +1,4 @@
-"""Synthetic experiment suite (S0-S7), runner, calibration, and plots."""
+"""Synthetic experiment suite (Set A: A1–A7, A_regime), runner, calibration, and plots."""
 
 from changept_detection.experiments.calibration import (
     CalibratedThresholds,

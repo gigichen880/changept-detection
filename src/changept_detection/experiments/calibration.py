@@ -40,14 +40,14 @@ def calibration_config_key(case: Any, window: int) -> tuple[Any, ...]:
     key: list[Any] = [case.experiment, window, d]
 
     per_exp: dict[str, tuple[str, ...]] = {
-        "S0": ("mean_shift", "volatility_ratio", "n_per_segment"),
-        "S1": ("nu", "garch_noise", "n_changepoints"),
-        "S2": ("delta", "mode_separation", "demeaned", "centered", "serial_dependence"),
-        "S3": ("delta_rho", "rho1", "n_per_segment"),
-        "S4": ("epsilon", "n_factors", "sparsity", "n_per_segment"),
-        "S5": ("persistent", "shock_type", "magnitude", "shock_length"),
-        "S6": ("shift_family", "signal_strength", "noise_level", "window_length"),
-        "S7": ("similarity", "regime_duration"),
+        "A1": ("mean_shift", "volatility_ratio", "n_per_segment"),
+        "A2": ("nu", "garch_noise", "n_changepoints"),
+        "A3": ("delta", "mode_separation", "demeaned", "centered", "serial_dependence"),
+        "A4": ("delta_rho", "rho1", "n_per_segment"),
+        "A5": ("epsilon", "n_factors", "sparsity", "n_per_segment"),
+        "A6": ("persistent", "shock_type", "magnitude", "shock_length"),
+        "A7": ("shift_family", "signal_strength", "noise_level", "window_length"),
+        "A_regime": ("similarity", "regime_duration"),
     }
     for name in per_exp.get(case.experiment, ()):
         val = p.get(name)

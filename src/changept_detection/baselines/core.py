@@ -122,7 +122,7 @@ BASELINE_RESOURCES: dict[str, BaselineResource] = {
         "covariance_frobenius",
         "Covariance Frobenius-distance scan",
         "Covariance/factor baseline",
-        "docs/experiment_plan.md S4 baseline",
+        "docs/experiment_plan.md A5 baseline",
         "docs/experiment_plan.md",
         "Implemented as an adjacent-window Frobenius norm between sample covariance matrices.",
     ),
@@ -130,7 +130,7 @@ BASELINE_RESOURCES: dict[str, BaselineResource] = {
         "pca_subspace",
         "PCA subspace-distance scan",
         "Covariance/factor baseline",
-        "docs/experiment_plan.md S4 baseline",
+        "docs/experiment_plan.md A5 baseline",
         "docs/experiment_plan.md",
         "Implemented as an adjacent-window projector distance between leading PCA subspaces.",
     ),
@@ -1030,7 +1030,7 @@ def cluster_rolling_windows(
     n_clusters: int,
     random_state: int = 0,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Simple detect-then-cluster baseline features for S7 interpretability."""
+    """Simple detect-then-cluster baseline features for A_regime interpretability."""
 
     data = as_2d(x)
     centers = np.arange(window, len(data) + 1)

@@ -131,10 +131,10 @@ def regime_labels_from_prototypes(
     n_em_rounds: int = 5,
 ) -> tuple[np.ndarray, np.ndarray, list[np.ndarray], np.ndarray]:
     """
-    Placeholder S7 regime labeling.
+    Placeholder A_regime regime labeling.
 
     Replace with prototype-posterior assignments from the real method.
-    Currently uses rolling-feature k-means so S7 metrics/plots remain wired.
+    Currently uses rolling-feature k-means so A_regime metrics/plots remain wired.
     """
     del metric, temperature, n_em_rounds
     from changept_detection.baselines.core import cluster_rolling_windows

@@ -12,7 +12,7 @@ import numpy as np
 
 from changept_detection.baselines.core import resource_table
 from changept_detection.experiments.metrics import build_score_audit_table
-from changept_detection.experiments.spec import BASELINE_SETS, EXPERIMENT_DESCRIPTIONS, PLAN_SECTION
+from changept_detection.experiments.spec import BASELINE_SETS, EXPERIMENT_DESCRIPTIONS
 from changept_detection.experiments.synthetic import flatten_result, run_synthetic_suite
 
 
@@ -50,7 +50,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         nargs="+",
         default=list(BASELINE_SETS),
         choices=list(BASELINE_SETS),
-        help="Synthetic experiments S0–S7 (plan sections A1–A7).",
+        help="Set A experiments: A1–A7 plus A_regime (default: all).",
     )
     parser.add_argument(
         "--grid",
@@ -132,7 +132,6 @@ def summarize(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             summary.append(
                 {
                     "experiment": experiment,
-                    "plan_section": PLAN_SECTION.get(experiment, ""),
                     "method": method,
                     "available_runs": 0,
                     "mean_f1": np.nan,
@@ -146,7 +145,6 @@ def summarize(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         summary.append(
             {
                 "experiment": experiment,
-                "plan_section": PLAN_SECTION.get(experiment, ""),
                 "method": method,
                 "available_runs": len(available),
                 "mean_f1": _mean_metric(available, "f1"),
@@ -163,7 +161,7 @@ def summarize(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def result_stem(grid: str, experiments: list[str]) -> str:
-    return f"synthetic_{grid}_{'-'.join(experiments)}"
+    return f"seta_{grid}_{'-'.join(experiments)}"
 
 
 def load_rows_from_output(output_dir: Path, stem: str) -> list[dict[str, Any]]:
@@ -211,8 +209,7 @@ def main(argv: list[str] | None = None) -> None:
         print("Set A synthetic CPD experiments complete")
         print(f"Experiments: {', '.join(args.experiments)}")
         for experiment in args.experiments:
-            section = PLAN_SECTION.get(experiment, "")
-            print(f"  {experiment} ({section}): {EXPERIMENT_DESCRIPTIONS[experiment]}")
+            print(f"  {experiment}: {EXPERIMENT_DESCRIPTIONS[experiment]}")
         print(f"Rows: {len(rows)}")
         print(f"CSV: {output_dir / f'{stem}.csv'}")
         print(f"Score audit: {output_dir / f'{stem}_score_audit.csv'}")
