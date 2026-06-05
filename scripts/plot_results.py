@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """
-Replot metric charts (and optional detection timelines) from saved experiment results.
+Replot metric charts and detection timelines from saved experiment results.
 
 Usage (from repo root, with changept env active and matplotlib installed):
 
-  # Auto-detect the only run folder under results/
+  # Metric bar charts only
   PYTHONPATH=src python scripts/plot_results.py
 
-  # Explicit run stem (folder name under results/)
-  PYTHONPATH=src python scripts/plot_results.py \\
-    --stem seta_quick_A1-A2-A3-A4-A5-A6-A7-A_regime
-
-  # Also regenerate detection timeline plots (re-runs detectors on representative cases)
+  # One detection timeline per experiment (true CP vs each method)
   PYTHONPATH=src python scripts/plot_results.py --detections
 
-Equivalent built-in CLI:
+  # All 58 case configs in your quick×2-seed run
+  PYTHONPATH=src python scripts/plot_results.py --detections --all-cases
+
+Equivalent built-in CLI (representative detection plots only, re-runs detectors):
   PYTHONPATH=src python -m changept_detection \\
     --plot-only seta_quick_A1-A2-A3-A4-A5-A6-A7-A_regime \\
     --output-dir results --plot --plot-detections
@@ -102,8 +101,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--detections",
         action="store_true",
-        help="Also generate detection timeline plots under plots/detections/ "
-        "(re-runs detectors on one representative case per experiment).",
+        help="Generate detection timeline plots (true CP vs each method) from saved results.csv.",
+    )
+    parser.add_argument(
+        "--all-cases",
+        action="store_true",
+        help="With --detections: plot every case config×seed (default: one representative case per experiment).",
+    )
+    parser.add_argument(
+        "--no-proposed-pipeline",
+        action="store_true",
+        help="Skip proposed_full alert/posterior pipeline plots.",
     )
     return parser.parse_args(argv)
 
@@ -142,18 +150,21 @@ def main(argv: list[str] | None = None) -> None:
         print(f"  {path.name}")
 
     if args.detections:
-        from changept_detection.experiments.diagnostics import generate_detection_diagnostic_plots
+        from changept_detection.experiments.diagnostics import generate_detection_plots_from_results
 
         detections_plot_dir = plots_detections_dir(output_dir, stem)
-        _, detection_paths = generate_detection_diagnostic_plots(
+        _, detection_paths = generate_detection_plots_from_results(
+            rows,
+            detections_plot_dir,
+            representative_only=not args.all_cases,
             experiments=experiments,
-            grid=grid,
-            seed=0,
-            plot_dir=detections_plot_dir,
+            include_proposed_pipeline=not args.no_proposed_pipeline,
         )
-        print(f"\nDetection plots written to {detections_plot_dir}/")
+        scope = "all cases" if args.all_cases else "representative case per experiment"
+        print(f"\nDetection plots ({scope}) written under {detections_plot_dir}/")
         for path in detection_paths:
-            print(f"  {path.name}")
+            rel = path.relative_to(detections_plot_dir)
+            print(f"  {rel}")
 
     print_output_tree(output_dir, stem)
 

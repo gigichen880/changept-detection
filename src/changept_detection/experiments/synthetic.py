@@ -876,3 +876,38 @@ def flatten_result(result: ExperimentResult) -> dict[str, Any]:
     row.update(result.metrics)
     row.update({f"meta_{k}": v for k, v in result.metadata.items() if np.isscalar(v) or isinstance(v, str)})
     return row
+
+
+def _coerce_param_value(value: str) -> Any:
+    if value == "True":
+        return True
+    if value == "False":
+        return False
+    try:
+        if "." in value or "e" in value.lower():
+            return float(value)
+        return int(value)
+    except ValueError:
+        return value
+
+
+def params_from_result_row(row: dict[str, Any]) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    for key, value in row.items():
+        if not key.startswith("param_") or value in ("", None):
+            continue
+        params[key[6:]] = _coerce_param_value(str(value))
+    return params
+
+
+def regenerate_case_from_row(row: dict[str, Any]) -> SyntheticCase:
+    """Rebuild the synthetic DGP for one results.csv row (same seed + difficulty knobs)."""
+    experiment = row["experiment"]
+    params = params_from_result_row(row)
+    seed = int(params.pop("seed", 0))
+    generator = GENERATORS[experiment]
+    import inspect
+
+    valid = set(inspect.signature(generator).parameters) - {"seed"}
+    filtered = {k: v for k, v in params.items() if k in valid}
+    return generator(seed=seed, **filtered)

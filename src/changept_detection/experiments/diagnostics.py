@@ -26,6 +26,7 @@ from changept_detection.experiments.synthetic import (
     baseline_kwargs,
     generate_null_series,
     make_cases,
+    regenerate_case_from_row,
     resolve_window,
 )
 from changept_detection.method.local_global_wasserstein import (
@@ -357,6 +358,141 @@ def generate_detection_diagnostic_plots(
         pipe_path = plot_proposed_pipeline(snap, plot_dir / f"{experiment}_proposed_pipeline.png")
         if pipe_path is not None:
             paths.append(pipe_path)
+
+    print_diagnosis_report(snapshots)
+    return snapshots, paths
+
+
+def parse_changepoints_field(value: str | None) -> list[int]:
+    if not value or not str(value).strip():
+        return []
+    return [int(x) for x in str(value).split(";") if x.strip()]
+
+
+def case_key_from_row(row: dict[str, Any]) -> tuple[Any, ...]:
+    params = tuple(sorted((k, v) for k, v in row.items() if k.startswith("param_") and v not in ("", None)))
+    return (row["experiment"], row["case_name"], params)
+
+
+def case_plot_stem(row: dict[str, Any]) -> str:
+    seed = int(float(row.get("param_seed", 0)))
+    parts = [row["case_name"], f"seed{seed}"]
+    for key in sorted(row):
+        if not key.startswith("param_") or key == "param_seed" or not row[key]:
+            continue
+        parts.append(f"{key[6:]}={row[key]}")
+    stem = "_".join(parts)
+    return stem.replace(".", "p").replace(" ", "")[:120]
+
+
+def group_rows_by_case(rows: list[dict[str, Any]]) -> dict[tuple[Any, ...], list[dict[str, Any]]]:
+    grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(case_key_from_row(row), []).append(row)
+    return grouped
+
+
+def snapshot_from_saved_rows(
+    case: SyntheticCase,
+    case_rows: list[dict[str, Any]],
+    window: int | None = None,
+) -> CaseDetectionSnapshot:
+    """Build a detection snapshot from saved results.csv rows (no detector re-run)."""
+    w = resolve_window(case, window or max(20, min(80, len(case.x) // 8)))
+    tol = detection_tolerance(w)
+    snapshots: list[MethodDetectionSnapshot] = []
+    for row in sorted(case_rows, key=lambda r: r.get("method", "")):
+        unavailable = float(row.get("unavailable", 0.0) or 0.0) == 1.0
+        th_raw = row.get("threshold")
+        threshold = float(th_raw) if th_raw not in ("", None) and np.isfinite(float(th_raw)) else None
+        result = DetectionResult(
+            method=row["method"],
+            changepoints=parse_changepoints_field(row.get("changepoints")),
+            threshold=threshold,
+            metadata={"unavailable": unavailable},
+        )
+        snapshots.append(MethodDetectionSnapshot(row["method"], result))
+    return CaseDetectionSnapshot(case.experiment, case, w, tol, snapshots)
+
+
+def generate_detection_plots_from_results(
+    rows: list[dict[str, Any]],
+    plot_dir: Path,
+    *,
+    representative_only: bool = False,
+    experiments: list[str] | None = None,
+    include_proposed_pipeline: bool = True,
+    calibrate: bool = True,
+    null_seeds: int = 8,
+    false_alarm_quantile: float = 0.95,
+) -> tuple[list[CaseDetectionSnapshot], list[Path]]:
+    """
+    Plot true vs detected changepoints from saved results.csv rows.
+
+    Regenerates each synthetic case for the time series + ground truth, then
+    overlays the changepoints already stored in the results table.
+    """
+    plot_dir = Path(plot_dir)
+    grouped = group_rows_by_case(rows)
+    experiments = experiments or list(EXPERIMENT_ORDER)
+    paths: list[Path] = []
+    snapshots: list[CaseDetectionSnapshot] = []
+
+    seen_representative: set[str] = set()
+    for key in sorted(grouped):
+        experiment, _case_name, _params = key
+        if experiment not in experiments:
+            continue
+        if representative_only:
+            if experiment in seen_representative:
+                continue
+            seen_representative.add(experiment)
+
+        case_rows = grouped[key]
+        template = case_rows[0]
+        case = regenerate_case_from_row(template)
+        snap = snapshot_from_saved_rows(case, case_rows)
+        snapshots.append(snap)
+
+        if representative_only:
+            out_path = plot_dir / f"{experiment}_detections.png"
+        else:
+            exp_dir = plot_dir / experiment
+            out_path = exp_dir / f"{case_plot_stem(template)}_detections.png"
+        paths.append(plot_experiment_detections(snap, out_path))
+
+        if include_proposed_pipeline and PROPOSED_PRIMARY in {r["method"] for r in case_rows}:
+            kwargs = baseline_kwargs(PROPOSED_PRIMARY, case, window=snap.window, n_bkps=len(case.changepoints))
+            if calibrate:
+                null_series = generate_null_series(case, n_null=null_seeds)
+                calibration = calibrate_for_case(
+                    case,
+                    [PROPOSED_PRIMARY],
+                    null_series,
+                    {PROPOSED_PRIMARY: kwargs},
+                    false_alarm_quantile=false_alarm_quantile,
+                )
+                cfg = calibration_config_key(case, snap.window)
+                th = calibration.get(cfg, PROPOSED_PRIMARY)
+                if th is not None and np.isfinite(th):
+                    kwargs["threshold"] = th
+                    kwargs["alert_threshold"] = th
+                    shift_th = calibration.get(cfg, f"{PROPOSED_PRIMARY}_shift")
+                    if shift_th is not None and np.isfinite(shift_th):
+                        kwargs["shift_threshold"] = shift_th
+            detail = _proposed_pipeline_detail(case, snap.window, kwargs)
+            for ms in snap.methods:
+                if ms.method == PROPOSED_PRIMARY:
+                    ms.proposed_detail = detail
+                    break
+            pipe_path = (
+                plot_dir / f"{experiment}_proposed_pipeline.png"
+                if representative_only
+                else plot_dir / experiment / f"{case_plot_stem(template)}_proposed_pipeline.png"
+            )
+            pipe = plot_proposed_pipeline(snap, pipe_path)
+            if pipe is not None:
+                paths.append(pipe)
 
     print_diagnosis_report(snapshots)
     return snapshots, paths
