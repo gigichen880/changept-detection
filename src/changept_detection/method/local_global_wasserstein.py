@@ -5,6 +5,21 @@ Three layers:
   1. Local Wasserstein alert (non-overlapping reference/current windows)
   2. Regime prototype posterior + shift score
   3. Rolling greedy global refinement + persistence confirmation
+
+--- KEY CHANGE (v2) ---
+Decouple candidate generation from final-decision thresholding.
+
+Problem in v1: the calibrated local_threshold was used as a gate for candidate
+generation.  When the signal was subtle (e.g. A1 mean/variance sanity check),
+NO candidates passed the gate, and the global optimization (paper eq. 19) was
+never invoked -- producing zero detections even though the optimization would
+have found the boundary.
+
+Fix: when global refinement is enabled, candidates are generated permissively
+(all local maxima above a low quantile).  The global optimization objective and
+persistence confirmation handle false-alarm control.  The calibrated threshold
+is still used for boundary-evidence scoring *within* the optimization, not as a
+pre-filter that can zero out the candidate set.
 """
 
 from __future__ import annotations
@@ -98,6 +113,24 @@ def localize_alert_times(alert_times: list[int], window: int) -> list[int]:
     return sorted(set(alert_time_to_boundary(t, window) for t in alert_times))
 
 
+def _find_local_maxima(scores: np.ndarray, order: int = 1) -> list[int]:
+    """Return indices of local maxima in *scores* (finite values only)."""
+    maxima: list[int] = []
+    for i in range(order, len(scores) - order):
+        if not np.isfinite(scores[i]):
+            continue
+        is_max = True
+        for j in range(1, order + 1):
+            left = scores[i - j] if np.isfinite(scores[i - j]) else -np.inf
+            right = scores[i + j] if i + j < len(scores) and np.isfinite(scores[i + j]) else -np.inf
+            if scores[i] < left or scores[i] < right:
+                is_max = False
+                break
+        if is_max:
+            maxima.append(i)
+    return maxima
+
+
 @dataclass
 class LocalGlobalWassersteinDetector:
     window_size: int = 50
@@ -120,6 +153,14 @@ class LocalGlobalWassersteinDetector:
     ablation: str = "full"
     n_projections: int = 64
     distance_kwargs: dict[str, Any] = field(default_factory=dict)
+
+    # --- v2: permissive candidate generation ---
+    # Quantile of alert scores used for candidate generation when global
+    # refinement is active.  Default 0.5 (median) is deliberately permissive:
+    # roughly half of all alert times become candidates, giving the global
+    # optimization (paper eq. 19) a rich set to select from.  The calibrated
+    # local_threshold is still used for evidence scoring inside the optimizer.
+    candidate_quantile: float = 0.5
 
     prototypes: list[np.ndarray] = field(default_factory=list, init=False)
     _distance_fn: Callable[[np.ndarray, np.ndarray], float] | None = field(default=None, init=False)
@@ -261,12 +302,55 @@ class LocalGlobalWassersteinDetector:
 
         posterior_th = float(posterior_th) if posterior_th is not None else np.inf
 
+        # ==================================================================
+        # v2: ADAPTIVE PENALTY SCALING
+        #
+        # The boundary_penalty in eq. 19 must be commensurate with the
+        # Wasserstein distances.  A penalty of 1.0 is reasonable when W2
+        # values are O(1), but sliced-W2 on short windows often produces
+        # values O(0.1).  We scale the penalty by the median alert score
+        # so that boundary_penalty acts as a dimensionless multiplier.
+        # ==================================================================
+        finite_alerts = alert_scores[np.isfinite(alert_scores)]
+        if len(finite_alerts) > 0:
+            median_alert = float(np.median(finite_alerts))
+        else:
+            median_alert = 1.0
+        scaled_boundary_penalty = self.boundary_penalty * median_alert
+        scaled_short_penalty = self.short_segment_penalty * median_alert
+
+        # ==================================================================
+        # v2: DECOUPLED CANDIDATE GENERATION
+        #
+        # When global refinement is active, use a PERMISSIVE threshold for
+        # candidate generation so the optimization (paper eq. 19) always has
+        # material to work with.  The calibrated local_th is reserved for
+        # boundary-evidence scoring *inside* the optimizer, not as a pre-gate.
+        #
+        # When global refinement is NOT active (local_only, etc.), the
+        # candidates ARE the final output, so we keep the conservative
+        # calibrated threshold.
+        # ==================================================================
+
+        if self.use_global:
+            # Permissive candidate threshold: quantile of alert scores
+            finite_alerts = alert_scores[np.isfinite(alert_scores)]
+            if len(finite_alerts) > 0:
+                cand_th = float(np.percentile(finite_alerts, self.candidate_quantile * 100))
+            else:
+                cand_th = 0.0
+        else:
+            # No global layer → candidates are final decisions → use calibrated threshold
+            cand_th = local_th
+
         candidate_boundaries: list[int] = []
         alert_candidates: list[int] = []
         for t in range(2 * w, n):
             a_t = alert_scores[t]
             b_t = shift_scores[t]
-            is_local = np.isfinite(a_t) and a_t > local_th
+
+            # Candidate generation uses the (possibly permissive) cand_th
+            is_local = np.isfinite(a_t) and a_t > cand_th
             is_posterior = self.use_posterior_trigger and np.isfinite(b_t) and b_t > posterior_th
 
             if self.ablation == "local_global_no_prototype":
@@ -279,6 +363,10 @@ class LocalGlobalWassersteinDetector:
                 is_candidate = is_local or is_posterior
 
             boundary_t = alert_time_to_boundary(t, w)
+
+            # Track whether this also exceeds the calibrated threshold (for logging)
+            is_strong = np.isfinite(a_t) and a_t > local_th
+
             log_row = {
                 "t": t,
                 "boundary_t": boundary_t,
@@ -289,6 +377,7 @@ class LocalGlobalWassersteinDetector:
                 "is_local_candidate": bool(is_local),
                 "is_posterior_candidate": bool(is_posterior),
                 "is_candidate": bool(is_candidate),
+                "is_strong_candidate": bool(is_strong),
                 "is_retained_by_global": False,
                 "is_confirmed": False,
             }
@@ -304,6 +393,23 @@ class LocalGlobalWassersteinDetector:
             w,
             include_shift=self.use_posterior_trigger,
         )
+
+        # ==================================================================
+        # v2: LOCAL-MAXIMA FALLBACK
+        #
+        # If even the permissive threshold produces no candidates (very quiet
+        # series), fall back to all local maxima of the alert curve.  This
+        # guarantees the global optimization always has *something* to
+        # evaluate.  The penalty terms in eq. 19 will reject them if they
+        # don't improve the segmentation.
+        # ==================================================================
+        if not candidate_boundaries and self.use_global:
+            local_max_times = _find_local_maxima(alert_scores, order=max(1, w // 4))
+            for t in local_max_times:
+                boundary_t = alert_time_to_boundary(t, w)
+                candidate_boundaries.append(boundary_t)
+                alert_candidates.append(t)
+            candidate_boundaries = sorted(set(candidate_boundaries))
 
         if not self.use_global:
             peaks = select_peaks(boundary_evidence, threshold=local_th, min_distance=self.merge_tolerance)
@@ -322,6 +428,7 @@ class LocalGlobalWassersteinDetector:
             global_retained = peaks if peaks else candidate_boundaries
             confirmed = filter_by_persistence(global_retained, boundary_evidence, local_th, self.persistence)
         else:
+            # === Global refinement path ===
             global_retained: list[int] = []
             step = max(1, w // 2)
             start_t = min(n - 1, 2 * w + self.refinement_horizon)
@@ -342,8 +449,8 @@ class LocalGlobalWassersteinDetector:
                     w,
                     self._distance_fn,
                     boundary_evidence,
-                    boundary_penalty=self.boundary_penalty,
-                    short_segment_penalty=self.short_segment_penalty,
+                    boundary_penalty=scaled_boundary_penalty,
+                    short_segment_penalty=scaled_short_penalty,
                     min_segment_length=self.min_segment_length,
                     merge_tolerance=self.merge_tolerance,
                     max_candidates=self.max_candidates,
@@ -359,55 +466,66 @@ class LocalGlobalWassersteinDetector:
             global_retained = merge_nearby(global_retained, boundary_evidence, self.merge_tolerance)
             self._retention_counts = retention_counts
             confirmed = confirmed_from_retention_counts(retention_counts, required_persistence)
+
+            # ----------------------------------------------------------
+            # v2: RELAXED FALLBACKS
+            #
+            # If persistence confirmation is too strict (e.g. short series
+            # with few refinement steps), progressively relax.
+            # ----------------------------------------------------------
             if not confirmed and global_retained:
+                # Try with reduced persistence
                 confirmed = filter_by_persistence(
                     global_retained, boundary_evidence, local_th, max(1, required_persistence - 1)
                 )
-            if not global_retained and candidate_boundaries:
-                above = [c for c in candidate_boundaries if np.isfinite(boundary_evidence[c]) and boundary_evidence[c] >= local_th]
-                if above:
-                    lo_full = 2 * w
-                    hi_full = n
-                    empty_score = global_segmentation_score(
-                        data,
-                        lo_full,
-                        hi_full,
-                        [],
-                        w,
-                        self._distance_fn,
-                        self.boundary_penalty,
-                        self.short_segment_penalty,
-                        self.min_segment_length,
-                    )
-                    best_c = max(
-                        above,
-                        key=lambda c: global_segmentation_score(
-                            data,
-                            lo_full,
-                            hi_full,
-                            [c],
-                            w,
-                            self._distance_fn,
-                            self.boundary_penalty,
-                            self.short_segment_penalty,
-                            self.min_segment_length,
-                        ),
-                    )
-                    best_score = global_segmentation_score(
-                        data,
-                        lo_full,
-                        hi_full,
-                        [best_c],
-                        w,
-                        self._distance_fn,
-                        self.boundary_penalty,
-                        self.short_segment_penalty,
-                        self.min_segment_length,
-                    )
-                    if best_c is not None and best_score > empty_score:
-                        global_retained = [best_c]
+
             if not confirmed and global_retained:
+                # Accept any globally-retained boundary
                 confirmed = merge_nearby(global_retained, boundary_evidence, self.merge_tolerance)
+
+            # ----------------------------------------------------------
+            # v2: FULL-SEQUENCE FALLBACK
+            #
+            # If rolling refinement retained nothing (all candidates were
+            # weak individually), try a single global pass over the entire
+            # sequence.  This is the "just solve the optimization problem"
+            # path: find the single best boundary that maximizes eq. 19.
+            # ----------------------------------------------------------
+            if not global_retained and candidate_boundaries:
+                lo_full = 2 * w
+                hi_full = n
+                empty_score = global_segmentation_score(
+                    data,
+                    lo_full,
+                    hi_full,
+                    [],
+                    w,
+                    self._distance_fn,
+                    scaled_boundary_penalty,
+                    scaled_short_penalty,
+                    self.min_segment_length,
+                )
+                # Evaluate each candidate as a single-boundary segmentation
+                best_c = None
+                best_score = empty_score
+                for c in candidate_boundaries:
+                    c_score = global_segmentation_score(
+                        data,
+                        lo_full,
+                        hi_full,
+                        [c],
+                        w,
+                        self._distance_fn,
+                        scaled_boundary_penalty,
+                        scaled_short_penalty,
+                        self.min_segment_length,
+                    )
+                    if c_score > best_score:
+                        best_score = c_score
+                        best_c = c
+                if best_c is not None:
+                    global_retained = [best_c]
+                    confirmed = [best_c]
 
         confirmed = merge_nearby(confirmed, boundary_evidence, self.merge_tolerance)
 
@@ -452,6 +570,10 @@ class LocalGlobalWassersteinDetector:
                 "ablation": self.ablation,
                 "local_threshold": local_th,
                 "posterior_threshold": posterior_th,
+                "candidate_threshold": cand_th,
+                "boundary_penalty_raw": self.boundary_penalty,
+                "boundary_penalty_scaled": scaled_boundary_penalty,
+                "median_alert": median_alert,
                 "persistence": self.persistence,
             },
             "logs": self._logs,
@@ -510,6 +632,8 @@ def run_proposed(key: str, x: np.ndarray, **kwargs: Any) -> DetectionResult:
     if key == "proposed_local_persistence_proxy":
         persistence = max(persistence, 2)
 
+    candidate_quantile = float(kwargs.get("candidate_quantile", 0.5))
+
     detector = LocalGlobalWassersteinDetector(
         window_size=window,
         refinement_horizon=int(kwargs.get("horizon", max(2 * window, 80))),
@@ -529,6 +653,7 @@ def run_proposed(key: str, x: np.ndarray, **kwargs: Any) -> DetectionResult:
         random_state=int(kwargs.get("seed", kwargs.get("random_state", 42))),
         ablation=ablation,
         n_projections=int(kwargs.get("n_projections", 64)),
+        candidate_quantile=candidate_quantile,
     )
 
     out = detector.detect(x)

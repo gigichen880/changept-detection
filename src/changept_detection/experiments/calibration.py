@@ -14,6 +14,23 @@ import numpy as np
 
 from changept_detection.baselines.core import DetectionResult, run_baseline
 
+# Penalty / state-model baselines do not consume score thresholds from §3.1 calibration.
+NON_THRESHOLD_METHODS = frozenset(
+    {
+        "pelt_l2",
+        "pelt_rbf",
+        "pelt_normal",
+        "binseg",
+        "bottomup",
+        "gaussian_hmm",
+        "markov_switching",
+    }
+)
+
+
+def method_uses_calibrated_threshold(method: str) -> bool:
+    return method not in NON_THRESHOLD_METHODS
+
 
 @dataclass
 class CalibratedThresholds:
@@ -127,6 +144,8 @@ def calibrate_for_case(
         false_alarm_quantile=false_alarm_quantile,
     )
     for method in methods:
+        if not method_uses_calibrated_threshold(method):
+            continue
         kwargs = dict(kwargs_by_method.get(method, {}))
         kwargs.pop("threshold", None)
         kwargs.pop("threshold_quantile", None)

@@ -24,6 +24,7 @@ from changept_detection.experiments.calibration import (
     CalibratedThresholds,
     calibrate_for_case,
     calibration_config_key,
+    method_uses_calibrated_threshold,
 )
 from changept_detection.experiments.metrics import (
     score_diagnostics,
@@ -667,7 +668,7 @@ def run_case(
         if progress is not None:
             progress.set_postfix(experiment=case.experiment, method=key, refresh=False)
         kwargs = baseline_kwargs(key, case, window=window, n_bkps=n_bkps)
-        if calibration is not None:
+        if calibration is not None and method_uses_calibrated_threshold(key):
             cfg = calibration_config_key(case, window)
             th = calibration.get(cfg, key)
             if th is not None and np.isfinite(th):
@@ -798,10 +799,26 @@ def run_synthetic_suite(
     progress = None
     if show_progress and total_steps > 0:
         try:
+            import sys
+
             from tqdm import tqdm
 
-            progress = tqdm(total=total_steps, desc="Set A experiments", unit="run", dynamic_ncols=True)
+            progress = tqdm(
+                total=total_steps,
+                desc="Set A experiments",
+                unit="run",
+                dynamic_ncols=True,
+                file=sys.stderr,
+                disable=False,
+            )
         except ImportError:
+            import warnings
+
+            warnings.warn(
+                "tqdm is not installed; progress bar disabled. "
+                "Install with: pip install -r requirements.txt",
+                stacklevel=2,
+            )
             progress = None
 
     try:

@@ -1,0 +1,308 @@
+[
+  {
+    "key": "coordinate_w2_window_scan",
+    "name": "Coordinate-wise W2 window scan",
+    "category": "OT",
+    "source": "Cheng et al., Optimal Transport Based Change Point Detection and Time Series Segment Clustering, arXiv:1911.01325",
+    "url": "https://arxiv.org/abs/1911.01325",
+    "implementation": "Adjacent-window coordinate-wise empirical W2; not the full Brownian-bridge W2T statistic.",
+    "notes": ""
+  },
+  {
+    "key": "coordinate_w2_matched_filter",
+    "name": "Coordinate-wise W2 + matched filter",
+    "category": "OT",
+    "source": "Cheng et al., arXiv:1911.01325",
+    "url": "https://arxiv.org/abs/1911.01325",
+    "implementation": "W2 window scan with triangular matched-filter post-processing (Cheng-style proxy).",
+    "notes": ""
+  },
+  {
+    "key": "local_w2t",
+    "name": "Alias for coordinate_w2_window_scan",
+    "category": "OT",
+    "source": "Cheng et al., arXiv:1911.01325",
+    "url": "https://arxiv.org/abs/1911.01325",
+    "implementation": "Deprecated alias; use coordinate_w2_window_scan or coordinate_w2_matched_filter.",
+    "notes": ""
+  },
+  {
+    "key": "coordinate_w2t",
+    "name": "Coordinate-wise W2T",
+    "category": "OT",
+    "source": "Cheng et al., Optimal Transport Based Change Point Detection and Time Series Segment Clustering, arXiv:1911.01325",
+    "url": "https://arxiv.org/abs/1911.01325",
+    "implementation": "Reimplemented by averaging one-dimensional W2 scores over coordinates.",
+    "notes": ""
+  },
+  {
+    "key": "sliced_wasserstein",
+    "name": "Sliced Wasserstein window scan",
+    "category": "OT",
+    "source": "POT: Python Optimal Transport documentation",
+    "url": "https://pythonot.github.io/",
+    "implementation": "Custom random-projection implementation; POT can also provide OT utilities.",
+    "notes": ""
+  },
+  {
+    "key": "sinkhorn",
+    "name": "Sinkhorn window scan",
+    "category": "OT",
+    "source": "POT: Python Optimal Transport documentation",
+    "url": "https://pythonot.github.io/",
+    "implementation": "Uses POT entropic OT when installed.",
+    "notes": ""
+  },
+  {
+    "key": "bures",
+    "name": "Bures-Wasserstein covariance scan",
+    "category": "OT",
+    "source": "Closed-form Gaussian/covariance 2-Wasserstein geometry",
+    "url": "https://en.wikipedia.org/wiki/Wasserstein_metric#Normal_distributions",
+    "implementation": "Implemented directly from the covariance closed form.",
+    "notes": ""
+  },
+  {
+    "key": "covariance_frobenius",
+    "name": "Covariance Frobenius-distance scan",
+    "category": "Covariance/factor baseline",
+    "source": "docs/experiment_plan.md A5 baseline",
+    "url": "docs/experiment_plan.md",
+    "implementation": "Implemented as an adjacent-window Frobenius norm between sample covariance matrices.",
+    "notes": ""
+  },
+  {
+    "key": "pca_subspace",
+    "name": "PCA subspace-distance scan",
+    "category": "Covariance/factor baseline",
+    "source": "docs/experiment_plan.md A5 baseline",
+    "url": "docs/experiment_plan.md",
+    "implementation": "Implemented as an adjacent-window projector distance between leading PCA subspaces.",
+    "notes": ""
+  },
+  {
+    "key": "watch_proxy",
+    "name": "WATCH-style initial-distribution monitor",
+    "category": "OT",
+    "source": "Faber et al., WATCH: Wasserstein Change Point Detection for High-Dimensional Time Series Data, arXiv:2201.07125",
+    "url": "https://arxiv.org/abs/2201.07125",
+    "implementation": "Lightweight proxy: compare each rolling window to an initial reference distribution.",
+    "notes": "Use the authors' code for exact WATCH replication when available."
+  },
+  {
+    "key": "pelt_l2",
+    "name": "PELT-L2",
+    "category": "Classical offline CPD",
+    "source": "Killick, Fearnhead, Eckley (2012); ruptures PELT documentation",
+    "url": "https://ctruong.perso.math.cnrs.fr/ruptures-docs/build/html/detection/pelt.html",
+    "implementation": "Uses ruptures Pelt(model='l2') when installed.",
+    "notes": ""
+  },
+  {
+    "key": "pelt_rbf",
+    "name": "PELT-RBF",
+    "category": "Classical offline CPD",
+    "source": "ruptures documentation",
+    "url": "https://centre-borelli.github.io/ruptures-docs/",
+    "implementation": "Uses ruptures Pelt(model='rbf') when installed.",
+    "notes": ""
+  },
+  {
+    "key": "pelt_normal",
+    "name": "PELT-normal",
+    "category": "Classical offline CPD",
+    "source": "ruptures documentation",
+    "url": "https://centre-borelli.github.io/ruptures-docs/",
+    "implementation": "Uses ruptures Pelt(model='normal') when installed.",
+    "notes": ""
+  },
+  {
+    "key": "binseg",
+    "name": "Binary Segmentation",
+    "category": "Classical offline CPD",
+    "source": "ruptures documentation",
+    "url": "https://centre-borelli.github.io/ruptures-docs/",
+    "implementation": "Uses ruptures Binseg when installed.",
+    "notes": ""
+  },
+  {
+    "key": "bottomup",
+    "name": "Bottom-Up segmentation",
+    "category": "Classical offline CPD",
+    "source": "ruptures documentation",
+    "url": "https://centre-borelli.github.io/ruptures-docs/",
+    "implementation": "Uses ruptures BottomUp when installed.",
+    "notes": ""
+  },
+  {
+    "key": "window_rbf",
+    "name": "Window-based CPD",
+    "category": "Classical offline CPD",
+    "source": "ruptures window method",
+    "url": "https://centre-borelli.github.io/ruptures-docs/",
+    "implementation": "Implemented as a generic RBF-MMD window scan to avoid a hard ruptures dependency.",
+    "notes": ""
+  },
+  {
+    "key": "mmd",
+    "name": "MMD window scan",
+    "category": "Nonparametric distributional CPD",
+    "source": "Gretton et al., A Kernel Two-Sample Test, JMLR 2012",
+    "url": "https://www.jmlr.org/papers/v13/gretton12a.html",
+    "implementation": "Implemented with an RBF kernel and median-bandwidth heuristic.",
+    "notes": ""
+  },
+  {
+    "key": "m_statistic",
+    "name": "M-statistic / kernel CPD",
+    "category": "Nonparametric distributional CPD",
+    "source": "Li, Xie, Dai, Song, M-Statistic for Kernel Change-Point Detection, NeurIPS 2015",
+    "url": "https://papers.nips.cc/paper/by-source-2015-1852",
+    "implementation": "Implemented as a local MMD statistic over adjacent windows.",
+    "notes": ""
+  },
+  {
+    "key": "energy",
+    "name": "Energy distance scan",
+    "category": "Nonparametric distributional CPD",
+    "source": "Matteson and James, A Nonparametric Approach for Multiple Change Point Analysis of Multivariate Data, JASA 2014",
+    "url": "https://doi.org/10.1080/01621459.2013.849605",
+    "implementation": "Implemented as adjacent-window multivariate energy distance.",
+    "notes": ""
+  },
+  {
+    "key": "ks",
+    "name": "KS window scan",
+    "category": "Nonparametric distributional CPD",
+    "source": "scipy.stats.ks_2samp documentation",
+    "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.ks_2samp.html",
+    "implementation": "Implemented coordinate-wise with average statistic.",
+    "notes": ""
+  },
+  {
+    "key": "cvm",
+    "name": "Cramer-von Mises window scan",
+    "category": "Nonparametric distributional CPD",
+    "source": "scipy.stats.cramervonmises_2samp documentation",
+    "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.cramervonmises_2samp.html",
+    "implementation": "Implemented coordinate-wise with average statistic.",
+    "notes": ""
+  },
+  {
+    "key": "density_ratio_proxy",
+    "name": "Relative density-ratio CPD proxy",
+    "category": "Nonparametric distributional CPD",
+    "source": "Liu, Yamada, Collier, Sugiyama, Change-Point Detection in Time-Series Data by Relative Density-Ratio Estimation, arXiv:1203.0453",
+    "url": "https://arxiv.org/abs/1203.0453",
+    "implementation": "Proxy implementation using logistic separability of adjacent windows.",
+    "notes": ""
+  },
+  {
+    "key": "cusum_mean",
+    "name": "CUSUM mean alarm",
+    "category": "Online/statistical",
+    "source": "Classic cumulative-sum sequential monitoring",
+    "url": "https://en.wikipedia.org/wiki/CUSUM",
+    "implementation": "Implemented directly as two-sided standardized CUSUM.",
+    "notes": ""
+  },
+  {
+    "key": "cusum_vol",
+    "name": "CUSUM volatility alarm",
+    "category": "Online/statistical",
+    "source": "Classic CUSUM applied to squared returns",
+    "url": "https://en.wikipedia.org/wiki/CUSUM",
+    "implementation": "Implemented directly on squared standardized observations.",
+    "notes": ""
+  },
+  {
+    "key": "ewma_vol",
+    "name": "EWMA volatility alarm",
+    "category": "Online/statistical",
+    "source": "RiskMetrics-style EWMA volatility monitoring",
+    "url": "https://www.msci.com/research-and-insights/paper/1996-riskmetrics-technical-document",
+    "implementation": "Implemented directly using EWMA variance innovations.",
+    "notes": ""
+  },
+  {
+    "key": "bocpd_gaussian",
+    "name": "Bayesian Online Change Point Detection",
+    "category": "Online/statistical",
+    "source": "Adams and MacKay, Bayesian Online Changepoint Detection, arXiv:0710.3742; dtolpin/bocd",
+    "url": "https://arxiv.org/abs/0710.3742",
+    "implementation": "Lightweight Gaussian predictive BOCPD implementation for univariate streams.",
+    "notes": "Reference repo: https://github.com/dtolpin/bocd"
+  },
+  {
+    "key": "gaussian_hmm",
+    "name": "Gaussian HMM",
+    "category": "Finance/econometric regime model",
+    "source": "hmmlearn GaussianHMM repository",
+    "url": "https://github.com/hmmlearn/hmmlearn",
+    "implementation": "Uses hmmlearn when installed.",
+    "notes": ""
+  },
+  {
+    "key": "markov_switching",
+    "name": "Markov-switching regression/volatility",
+    "category": "Finance/econometric regime model",
+    "source": "Hamilton, A New Approach to the Economic Analysis of Nonstationary Time Series and the Business Cycle, Econometrica 1989",
+    "url": "https://www.jstor.org/stable/1912559",
+    "implementation": "Registered for experiment reporting; use statsmodels.tsa.regime_switching for full model fits.",
+    "notes": ""
+  },
+  {
+    "key": "proposed_local_only",
+    "name": "Proposed: local alert only",
+    "category": "Proposed method",
+    "source": "docs/experiment_plan.md \u00a72.2",
+    "url": "docs/experiment_plan.md",
+    "implementation": "Local Wasserstein alert only; see method/local_global_wasserstein.py.",
+    "notes": ""
+  },
+  {
+    "key": "proposed_local_persistence_proxy",
+    "name": "Proposed: local + persistence proxy",
+    "category": "Proposed method",
+    "source": "docs/experiment_plan.md \u00a72.2",
+    "url": "docs/experiment_plan.md",
+    "implementation": "Local alert with persistence filter; no global layer.",
+    "notes": ""
+  },
+  {
+    "key": "proposed_local_global_no_proto",
+    "name": "Proposed: local + global, no prototypes",
+    "category": "Proposed method",
+    "source": "docs/experiment_plan.md \u00a72.2",
+    "url": "docs/experiment_plan.md",
+    "implementation": "Local alert + greedy global refinement without prototype posterior.",
+    "notes": ""
+  },
+  {
+    "key": "proposed_local_proto_no_global",
+    "name": "Proposed: local + prototypes, no global",
+    "category": "Proposed method",
+    "source": "docs/experiment_plan.md \u00a72.2",
+    "url": "docs/experiment_plan.md",
+    "implementation": "Local alert + prototype posterior without global refinement.",
+    "notes": ""
+  },
+  {
+    "key": "proposed_full",
+    "name": "Proposed: local + prototypes + global refinement",
+    "category": "Proposed method",
+    "source": "docs/proposed_method.md \u00a70",
+    "url": "docs/proposed_method.md",
+    "implementation": "Full three-layer pipeline in method/local_global_wasserstein.py.",
+    "notes": ""
+  },
+  {
+    "key": "proposed_local_global",
+    "name": "Alias for proposed_local_persistence_proxy",
+    "category": "Proposed method",
+    "source": "docs/experiment_plan.md",
+    "url": "docs/experiment_plan.md",
+    "implementation": "Deprecated alias.",
+    "notes": ""
+  }
+]

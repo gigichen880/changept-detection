@@ -2,12 +2,15 @@
   {
     "experiment": "A1",
     "method": "binseg",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
+    "available_runs": 4,
+    "mean_f1": 0.0,
+    "mean_recall": 0.0,
+    "mean_precision": 0.0,
     "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_duplicate_rate": null,
+    "mean_threshold": null,
+    "mean_max_score": 0.0,
+    "mean_num_detected": 1.0
   },
   {
     "experiment": "A1",
@@ -19,7 +22,7 @@
     "mean_ari": null,
     "mean_duplicate_rate": null,
     "mean_threshold": 0.5,
-    "mean_max_score": 0.008333333333333337,
+    "mean_max_score": 0.008333333333333338,
     "mean_num_detected": 0.0
   },
   {
@@ -31,7 +34,7 @@
     "mean_precision": 0.5,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.4029613274322233,
+    "mean_threshold": 0.40296132743222335,
     "mean_max_score": 0.4039773735970231,
     "mean_num_detected": 1.0
   },
@@ -58,7 +61,7 @@
     "mean_ari": null,
     "mean_duplicate_rate": null,
     "mean_threshold": 26.001389178030095,
-    "mean_max_score": 26.649027061010706,
+    "mean_max_score": 26.64902706101071,
     "mean_num_detected": 1.0
   },
   {
@@ -77,45 +80,54 @@
   {
     "experiment": "A1",
     "method": "pelt_l2",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
+    "available_runs": 4,
+    "mean_f1": 0.17142857142857143,
+    "mean_recall": 0.5,
+    "mean_precision": 0.10416666666666666,
     "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_duplicate_rate": null,
+    "mean_threshold": null,
+    "mean_max_score": 0.0,
+    "mean_num_detected": 5.0
   },
   {
     "experiment": "A1",
     "method": "pelt_normal",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
+    "available_runs": 4,
+    "mean_f1": 0.14285714285714288,
+    "mean_recall": 1.0,
+    "mean_precision": 0.07692307692307693,
     "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_duplicate_rate": null,
+    "mean_threshold": null,
+    "mean_max_score": 0.0,
+    "mean_num_detected": 13.0
   },
   {
     "experiment": "A1",
     "method": "pelt_rbf",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
+    "available_runs": 4,
+    "mean_f1": 0.0,
+    "mean_recall": 0.0,
+    "mean_precision": 0.0,
     "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_duplicate_rate": null,
+    "mean_threshold": null,
+    "mean_max_score": 0.0,
+    "mean_num_detected": 0.0
   },
   {
     "experiment": "A1",
     "method": "proposed_full",
     "available_runs": 4,
     "mean_f1": 0.5,
-    "mean_recall": 0.5,
-    "mean_precision": 0.5,
+    "mean_recall": 1.0,
+    "mean_precision": 0.3333333333333333,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.4858672149929925,
+    "mean_threshold": 0.48586721499299246,
     "mean_max_score": 0.5120880043869245,
-    "mean_num_detected": 0.5
+    "mean_num_detected": 3.0
   },
   {
     "experiment": "A1",
@@ -126,7 +138,7 @@
     "mean_precision": 0.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.4858672149929925,
+    "mean_threshold": 0.48586721499299246,
     "mean_max_score": 0.5120880043869245,
     "mean_num_detected": 0.0
   },
@@ -139,7 +151,7 @@
     "mean_precision": 0.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.44952234514072853,
+    "mean_threshold": 0.4495223451407284,
     "mean_max_score": 0.45254116423124835,
     "mean_num_detected": 1.0
   },
@@ -178,7 +190,7 @@
     "mean_precision": 0.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.28023716201461113,
+    "mean_threshold": 0.2802371620146112,
     "mean_max_score": 0.32251848447340753,
     "mean_num_detected": 1.0
   },
@@ -192,7 +204,7 @@
     "mean_ari": null,
     "mean_duplicate_rate": null,
     "mean_threshold": 10.830812919392674,
-    "mean_max_score": 14.360149205134784,
+    "mean_max_score": 14.36014920513478,
     "mean_num_detected": 2.0
   },
   {
@@ -224,25 +236,28 @@
   {
     "experiment": "A2",
     "method": "pelt_rbf",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
-    "mean_ari": null,
-    "mean_duplicate_rate": null
-  },
-  {
-    "experiment": "A2",
-    "method": "proposed_full",
     "available_runs": 4,
     "mean_f1": 0.0,
     "mean_recall": 0.0,
     "mean_precision": 0.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
+    "mean_threshold": null,
+    "mean_max_score": 0.0,
+    "mean_num_detected": 0.0
+  },
+  {
+    "experiment": "A2",
+    "method": "proposed_full",
+    "available_runs": 4,
+    "mean_f1": 0.5416666666666666,
+    "mean_recall": 1.0,
+    "mean_precision": 0.37499999999999994,
+    "mean_ari": null,
+    "mean_duplicate_rate": null,
     "mean_threshold": 0.6375407114751821,
     "mean_max_score": 0.7286207352917998,
-    "mean_num_detected": 0.75
+    "mean_num_detected": 2.75
   },
   {
     "experiment": "A3",
@@ -266,8 +281,8 @@
     "mean_precision": 0.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 6.069568289800507,
-    "mean_max_score": 4.450520007565734,
+    "mean_threshold": 6.069568289800508,
+    "mean_max_score": 4.450520007565735,
     "mean_num_detected": 0.0
   },
   {
@@ -312,38 +327,41 @@
   {
     "experiment": "A3",
     "method": "pelt_rbf",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
+    "available_runs": 4,
+    "mean_f1": 0.25,
+    "mean_recall": 0.25,
+    "mean_precision": 0.25,
     "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_duplicate_rate": null,
+    "mean_threshold": null,
+    "mean_max_score": 0.0,
+    "mean_num_detected": 0.25
   },
   {
     "experiment": "A3",
     "method": "proposed_full",
     "available_runs": 4,
-    "mean_f1": 0.0,
-    "mean_recall": 0.0,
-    "mean_precision": 0.0,
+    "mean_f1": 0.625,
+    "mean_recall": 1.0,
+    "mean_precision": 0.4583333333333333,
     "mean_ari": null,
     "mean_duplicate_rate": null,
     "mean_threshold": 9.944243658219095,
     "mean_max_score": 6.488274090006811,
-    "mean_num_detected": 0.0
+    "mean_num_detected": 2.25
   },
   {
     "experiment": "A4",
     "method": "bures",
     "available_runs": 4,
-    "mean_f1": 0.0,
-    "mean_recall": 0.0,
-    "mean_precision": 0.0,
+    "mean_f1": 0.25,
+    "mean_recall": 0.25,
+    "mean_precision": 0.25,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 2.896417786853903,
-    "mean_max_score": 2.527716074482111,
-    "mean_num_detected": 0.0
+    "mean_threshold": 2.896417786853932,
+    "mean_max_score": 2.6343636173550435,
+    "mean_num_detected": 0.25
   },
   {
     "experiment": "A4",
@@ -354,9 +372,9 @@
     "mean_precision": 0.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.2981419784619329,
-    "mean_max_score": 0.3889235536532233,
-    "mean_num_detected": 0.5
+    "mean_threshold": 0.2968754202758966,
+    "mean_max_score": 0.3867683177221071,
+    "mean_num_detected": 0.75
   },
   {
     "experiment": "A4",
@@ -367,8 +385,8 @@
     "mean_precision": 0.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.5777812092580857,
-    "mean_max_score": 0.7013895249795206,
+    "mean_threshold": 0.577781209258086,
+    "mean_max_score": 0.7026940857878112,
     "mean_num_detected": 0.5
   },
   {
@@ -380,9 +398,9 @@
     "mean_precision": 0.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.27894444444444444,
-    "mean_max_score": 0.30972222222222223,
-    "mean_num_detected": 0.5
+    "mean_threshold": 0.2698888888888889,
+    "mean_max_score": 0.31666666666666665,
+    "mean_num_detected": 1.0
   },
   {
     "experiment": "A4",
@@ -393,65 +411,74 @@
     "mean_precision": 0.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.08521714792309339,
-    "mean_max_score": 0.0993939684149674,
+    "mean_threshold": 0.08521714792309337,
+    "mean_max_score": 0.09939396841496732,
     "mean_num_detected": 0.5
   },
   {
     "experiment": "A4",
     "method": "pelt_l2",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
+    "available_runs": 4,
+    "mean_f1": 0.19090909090909092,
+    "mean_recall": 1.0,
+    "mean_precision": 0.10555555555555556,
     "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_duplicate_rate": null,
+    "mean_threshold": null,
+    "mean_max_score": 0.0,
+    "mean_num_detected": 9.5
   },
   {
     "experiment": "A4",
     "method": "pelt_rbf",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
+    "available_runs": 4,
+    "mean_f1": 0.0,
+    "mean_recall": 0.0,
+    "mean_precision": 0.0,
     "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_duplicate_rate": null,
+    "mean_threshold": null,
+    "mean_max_score": 0.0,
+    "mean_num_detected": 0.0
   },
   {
     "experiment": "A4",
     "method": "proposed_full",
     "available_runs": 4,
-    "mean_f1": 0.0,
-    "mean_recall": 0.0,
-    "mean_precision": 0.0,
+    "mean_f1": 0.45833333333333326,
+    "mean_recall": 0.75,
+    "mean_precision": 0.3333333333333333,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 2.896417786853903,
-    "mean_max_score": 2.527716074482111,
-    "mean_num_detected": 0.0
+    "mean_threshold": 2.896417786853932,
+    "mean_max_score": 2.6343636173550435,
+    "mean_num_detected": 2.0
   },
   {
     "experiment": "A4",
     "method": "proposed_local_global_no_proto",
+    "available_runs": 4,
+    "mean_f1": 0.45,
+    "mean_recall": 1.0,
+    "mean_precision": 0.29166666666666663,
+    "mean_ari": null,
+    "mean_duplicate_rate": null,
+    "mean_threshold": 2.896417786853932,
+    "mean_max_score": 2.6343636173550435,
+    "mean_num_detected": 3.5
+  },
+  {
+    "experiment": "A4",
+    "method": "sinkhorn",
     "available_runs": 4,
     "mean_f1": 0.0,
     "mean_recall": 0.0,
     "mean_precision": 0.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 2.896417786853903,
-    "mean_max_score": 2.527716074482111,
-    "mean_num_detected": 0.0
-  },
-  {
-    "experiment": "A4",
-    "method": "sinkhorn",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
-    "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_threshold": 10.859896649058475,
+    "mean_max_score": 10.962301334655512,
+    "mean_num_detected": 0.5
   },
   {
     "experiment": "A4",
@@ -462,94 +489,100 @@
     "mean_precision": 0.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.36026983111898125,
-    "mean_max_score": 0.4245241791786463,
+    "mean_threshold": 0.34589940405848224,
+    "mean_max_score": 0.4482450250587518,
     "mean_num_detected": 0.5
   },
   {
     "experiment": "A5",
     "method": "bures",
     "available_runs": 4,
-    "mean_f1": 0.5,
+    "mean_f1": 0.41666666666666663,
     "mean_recall": 0.5,
-    "mean_precision": 0.5,
+    "mean_precision": 0.375,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 8.612763828210985,
-    "mean_max_score": 8.979715197753197,
-    "mean_num_detected": 1.0
+    "mean_threshold": 8.635087228859039,
+    "mean_max_score": 8.844766748439854,
+    "mean_num_detected": 1.25
   },
   {
     "experiment": "A5",
     "method": "covariance_frobenius",
     "available_runs": 4,
-    "mean_f1": 0.16666666666666666,
-    "mean_recall": 0.25,
-    "mean_precision": 0.125,
+    "mean_f1": 0.41666666666666663,
+    "mean_recall": 0.5,
+    "mean_precision": 0.375,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 5.964224482588506,
-    "mean_max_score": 6.057142859536773,
+    "mean_threshold": 6.001669882526199,
+    "mean_max_score": 6.085611444288501,
     "mean_num_detected": 1.75
   },
   {
     "experiment": "A5",
     "method": "mmd",
     "available_runs": 4,
-    "mean_f1": 0.0,
-    "mean_recall": 0.0,
-    "mean_precision": 0.0,
-    "mean_ari": null,
-    "mean_duplicate_rate": null,
-    "mean_threshold": 0.049904562025004776,
-    "mean_max_score": 0.05176755307393543,
-    "mean_num_detected": 1.0
-  },
-  {
-    "experiment": "A5",
-    "method": "pca_subspace",
-    "available_runs": 4,
     "mean_f1": 0.16666666666666666,
     "mean_recall": 0.25,
     "mean_precision": 0.125,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 1.414174612730673,
-    "mean_max_score": 1.4142090619428762,
+    "mean_threshold": 0.050204847199880706,
+    "mean_max_score": 0.05167283996953523,
+    "mean_num_detected": 1.25
+  },
+  {
+    "experiment": "A5",
+    "method": "pca_subspace",
+    "available_runs": 4,
+    "mean_f1": 0.3333333333333333,
+    "mean_recall": 0.5,
+    "mean_precision": 0.25,
+    "mean_ari": null,
+    "mean_duplicate_rate": null,
+    "mean_threshold": 1.4141989059671207,
+    "mean_max_score": 1.4142092260409993,
     "mean_num_detected": 1.75
   },
   {
     "experiment": "A5",
     "method": "pelt_rbf",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
+    "available_runs": 4,
+    "mean_f1": 0.0,
+    "mean_recall": 0.0,
+    "mean_precision": 0.0,
     "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_duplicate_rate": null,
+    "mean_threshold": null,
+    "mean_max_score": 0.0,
+    "mean_num_detected": 0.0
   },
   {
     "experiment": "A5",
     "method": "proposed_full",
+    "available_runs": 4,
+    "mean_f1": 0.41666666666666663,
+    "mean_recall": 0.75,
+    "mean_precision": 0.29166666666666663,
+    "mean_ari": null,
+    "mean_duplicate_rate": null,
+    "mean_threshold": 8.635778841041535,
+    "mean_max_score": 8.844766748439854,
+    "mean_num_detected": 2.5
+  },
+  {
+    "experiment": "A5",
+    "method": "sinkhorn",
     "available_runs": 4,
     "mean_f1": 0.25,
     "mean_recall": 0.25,
     "mean_precision": 0.25,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 8.613515012128348,
-    "mean_max_score": 8.979715197753197,
-    "mean_num_detected": 1.0
-  },
-  {
-    "experiment": "A5",
-    "method": "sinkhorn",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
-    "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_threshold": 26.40619546315321,
+    "mean_max_score": 26.58199265113333,
+    "mean_num_detected": 1.25
   },
   {
     "experiment": "A5",
@@ -587,7 +620,7 @@
     "mean_ari": null,
     "mean_duplicate_rate": null,
     "mean_threshold": 0.26488110846173163,
-    "mean_max_score": 0.8585649838535008,
+    "mean_max_score": 0.8585649838535007,
     "mean_num_detected": 1.25
   },
   {
@@ -632,25 +665,28 @@
   {
     "experiment": "A6",
     "method": "pelt_rbf",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
+    "available_runs": 4,
+    "mean_f1": 0.5,
+    "mean_recall": 0.5,
+    "mean_precision": 0.5,
     "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_duplicate_rate": null,
+    "mean_threshold": null,
+    "mean_max_score": 0.0,
+    "mean_num_detected": 0.5
   },
   {
     "experiment": "A6",
     "method": "proposed_full",
     "available_runs": 4,
-    "mean_f1": 0.33333333333333337,
-    "mean_recall": 0.5,
-    "mean_precision": 0.3,
+    "mean_f1": 0.6666666666666666,
+    "mean_recall": 0.75,
+    "mean_precision": 0.8,
     "mean_ari": null,
     "mean_duplicate_rate": null,
     "mean_threshold": 0.4129586188605001,
     "mean_max_score": 1.1106069102417129,
-    "mean_num_detected": 1.5
+    "mean_num_detected": 2.0
   },
   {
     "experiment": "A6",
@@ -688,7 +724,7 @@
     "mean_ari": null,
     "mean_duplicate_rate": 0.0,
     "mean_threshold": 0.17702085892338412,
-    "mean_max_score": 0.1132621859201737,
+    "mean_max_score": 0.11331836284158205,
     "mean_num_detected": 0.125
   },
   {
@@ -700,22 +736,22 @@
     "mean_precision": 0.09375,
     "mean_ari": null,
     "mean_duplicate_rate": 0.0,
-    "mean_threshold": 0.06966791684009921,
-    "mean_max_score": 0.03811902937697539,
+    "mean_threshold": 0.06966791684009922,
+    "mean_max_score": 0.03786666199695285,
     "mean_num_detected": 0.09375
   },
   {
     "experiment": "A7",
     "method": "proposed_full",
     "available_runs": 32,
-    "mean_f1": 0.0,
-    "mean_recall": 0.0,
-    "mean_precision": 0.0,
+    "mean_f1": 0.53125,
+    "mean_recall": 0.5625,
+    "mean_precision": 0.515625,
     "mean_ari": null,
-    "mean_duplicate_rate": 0.0,
+    "mean_duplicate_rate": 0.09375,
     "mean_threshold": 0.2821312263788506,
-    "mean_max_score": 0.1833659919543261,
-    "mean_num_detected": 0.0
+    "mean_max_score": 0.18470818764444513,
+    "mean_num_detected": 0.84375
   },
   {
     "experiment": "A7",
@@ -727,7 +763,7 @@
     "mean_ari": null,
     "mean_duplicate_rate": 0.0,
     "mean_threshold": 0.2821312263788506,
-    "mean_max_score": 0.1833659919543261,
+    "mean_max_score": 0.18470818764444513,
     "mean_num_detected": 0.15625
   },
   {
@@ -739,8 +775,8 @@
     "mean_precision": 0.09375,
     "mean_ari": null,
     "mean_duplicate_rate": 0.0,
-    "mean_threshold": 0.06966791684009921,
-    "mean_max_score": 0.03811902937697539,
+    "mean_threshold": 0.06966791684009922,
+    "mean_max_score": 0.03786666199695285,
     "mean_num_detected": 0.09375
   },
   {
@@ -752,45 +788,48 @@
     "mean_precision": 1.0,
     "mean_ari": null,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.5570415990408442,
-    "mean_max_score": 0.5580130403708133,
+    "mean_threshold": 0.5680612172612358,
+    "mean_max_score": 0.5692988493551993,
     "mean_num_detected": 1.0
   },
   {
     "experiment": "A_regime",
     "method": "gaussian_hmm",
-    "available_runs": 0,
-    "mean_f1": null,
-    "mean_recall": null,
-    "mean_precision": null,
+    "available_runs": 2,
+    "mean_f1": 0.6727272727272728,
+    "mean_recall": 0.7,
+    "mean_precision": 0.65,
     "mean_ari": null,
-    "mean_duplicate_rate": null
+    "mean_duplicate_rate": null,
+    "mean_threshold": 0.5,
+    "mean_max_score": 1.0,
+    "mean_num_detected": 5.5
   },
   {
     "experiment": "A_regime",
     "method": "proposed_full",
     "available_runs": 2,
-    "mean_f1": 0.45238095238095244,
-    "mean_recall": 0.30000000000000004,
+    "mean_f1": 0.5416666666666666,
+    "mean_recall": 0.4,
     "mean_precision": 1.0,
-    "mean_ari": 0.24410124414984524,
+    "mean_ari": 0.19598784490450738,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.6512552242309066,
-    "mean_max_score": 0.6668006786075154,
-    "mean_num_detected": 1.5
+    "mean_threshold": 0.6564109714157745,
+    "mean_max_score": 0.6743184551368526,
+    "mean_num_detected": 2.0
   },
   {
     "experiment": "A_regime",
     "method": "proposed_local_proto_no_global",
     "available_runs": 2,
-    "mean_f1": 0.33333333333333337,
-    "mean_recall": 0.2,
-    "mean_precision": 1.0,
-    "mean_ari": 0.24410124414984524,
+    "mean_f1": 0.16666666666666669,
+    "mean_recall": 0.1,
+    "mean_precision": 0.5,
+    "mean_ari": 0.19598784490450738,
     "mean_duplicate_rate": null,
-    "mean_threshold": 0.6512552242309066,
-    "mean_max_score": 0.6668006786075154,
-    "mean_num_detected": 1.0
+    "mean_threshold": 0.6564109714157745,
+    "mean_max_score": 0.6743184551368526,
+    "mean_num_detected": 0.5
   },
   {
     "experiment": "A_regime",
@@ -799,7 +838,7 @@
     "mean_f1": null,
     "mean_recall": null,
     "mean_precision": null,
-    "mean_ari": 0.1768107985899467,
+    "mean_ari": 0.182992325222067,
     "mean_duplicate_rate": null,
     "mean_threshold": null,
     "mean_max_score": null,

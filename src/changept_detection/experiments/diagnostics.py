@@ -9,7 +9,12 @@ from typing import Any
 import numpy as np
 
 from changept_detection.baselines.core import DetectionResult, run_baseline
-from changept_detection.experiments.calibration import CalibratedThresholds, calibrate_for_case, calibration_config_key
+from changept_detection.experiments.calibration import (
+    CalibratedThresholds,
+    calibrate_for_case,
+    calibration_config_key,
+    method_uses_calibrated_threshold,
+)
 from changept_detection.experiments.spec import (
     BASELINE_SETS,
     EXPERIMENT_ORDER,
@@ -125,7 +130,7 @@ def run_representative_case(
     snapshots: list[MethodDetectionSnapshot] = []
     for method in methods:
         kwargs = dict(kwargs_map[method])
-        if calibration is not None and cfg is not None:
+        if calibration is not None and cfg is not None and method_uses_calibrated_threshold(method):
             th = calibration.get(cfg, method)
             if th is not None and np.isfinite(th):
                 kwargs["threshold"] = th
